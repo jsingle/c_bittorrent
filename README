@@ -1,0 +1,21 @@
+
+This is skeleton development for your BitTorrent (BT) client. 
+
+Included Files and Purpose
+
+bt_client.c   :   Main file where the control loop lives
+bt_setup.c    :   Contains setup code, such as parsing arguments
+bencode.c     :   Code for parsing bencoded torrent files
+bt_lib.c      :   Code for core functionality of bt
+
+bt_setup.h    :   Header file for setup
+bencode.h     :   Header file for bencode
+bt_lib.h      :   Header file for bt_lib
+
+Suggested Additional Files [and headers]
+
+bt_io.c[.h]   :   File for handing input output
+bt_sock.c[.h] :   File for handling socket and network issues
+
+
+
