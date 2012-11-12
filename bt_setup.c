@@ -191,3 +191,47 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
   return ;
 }
 
+int parse_bt_info(bt_info_t * out, be_node * node)
+{
+  size_t i,j;
+  be_node * currnode;
+  be_node * infonode;
+  //bt_info_t out;
+  // announce
+  // parse dict with info
+
+  for (i = 0; node->val.d[i].val; ++i) {
+    currnode = node -> val.d[i].val;
+    if(strcmp(node->val.d[i].key,"announce") == 0)
+      strcpy(out->announce,currnode->val.s);
+    
+    else if(strcmp(node->val.d[i].key,"info") == 0)
+      for (j = 0; currnode->val.d[j].val; ++j) {
+        infonode = currnode -> val.d[j].val;
+	
+	if(strcmp(currnode->val.d[j].key,"name") == 0)
+	  strcpy(out->name,infonode->val.s);
+	else if(strcmp(currnode->val.d[j].key,"length") == 0)
+	  out->length = infonode->val.i;
+	else if(strcmp(currnode->val.d[j].key,"piece length") == 0)        {
+	  out->piece_length = infonode->val.i;
+	  // once we have the total length and piece length
+	  // we can find the number of pieces req'd
+	  out -> num_pieces = (out->length)/(out-> piece_length);
+	  // handle partial pieces
+	  if (out->length%out->piece_length > 0)
+	   out -> num_pieces++; 
+	}
+	
+	else if(strcmp(currnode->val.d[j].key,"pieces") == 0)
+	{
+	  // here we malloc the pieces_hash buffer based
+	  // on the number of pieces we have
+	  out -> piece_hashes = malloc(out->num_pieces*(be_str_len(node)));
+	  strcpy(*(out->piece_hashes),currnode->val.s);
+        }
+      }
+  }
+  return 1;
+}
+

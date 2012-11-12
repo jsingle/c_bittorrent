@@ -34,5 +34,4 @@ void usage(FILE * file);
 void parse_args(bt_args_t * bt_args, int argc,  char ** argv);
 
 
-
 #endif

@@ -40,12 +40,18 @@ int main (int argc, char * argv[]){
     
   }
 
-  //read and parse the torent file
+  //read and parse the torrent file
   node = load_be_node(bt_args.torrent_file);
 
   if(bt_args.verbose){
     be_dump(node);
   }
+
+  bt_info_t tracker_info;
+
+  node = load_be_node(bt_args.torrent_file);
+  parse_bt_info(&tracker_info,node); 
+  printf("tracker announce:\t%s",tracker_info.announce);
 
   //main client loop
   printf("Starting Main Loop\n");
