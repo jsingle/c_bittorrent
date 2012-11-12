@@ -81,6 +81,7 @@ typedef struct {
   
   /*set once torrent is parse*/
   bt_info_t * bt_info; //the parsed info for this torrent
+  int port;
   
 
 } bt_args_t;
@@ -182,6 +183,10 @@ int sha1_piece(bt_args_t * bt_args, bt_piece_t * piece, unsigned char * hash);
 /*Contact the tracker and update bt_args with info learned, 
   such as peer list*/
 int contact_tracker(bt_args_t * bt_args);
+
+
+//Gets peer handshake
+void get_peer_handshake(peer * p, (putsha1here), char * h_message);
 
 
 
