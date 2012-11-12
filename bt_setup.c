@@ -24,8 +24,7 @@ void usage(FILE * file){
   fprintf(file,
           "bt-client [OPTIONS] file.torrent\n"
           "  -h            \t Print this help screen\n"
-          "  -b ip         \t Bind to this ip for incoming connections, ports\n"
-          "                \t are selected automatically\n"
+          "  -b ip         \t Bind to this port\n"
           "  -s save_file  \t Save the torrent in directory save_dir (dflt: .)\n"
           "  -l log_file   \t Save logs to log_filw (dflt: bt-client.log)\n"
           "  -p ip:port    \t Instead of contacing the tracker for a peer list,\n"
@@ -134,9 +133,10 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
     bt_args->peers[i] = NULL; //initially NULL
   }
 
+  bt_args->port = 0;
   bt_args->id = 0;
   
-  while ((ch = getopt(argc, argv, "hp:s:l:vI:")) != -1) {
+  while ((ch = getopt(argc, argv, "hp:s:l:vI:b:")) != -1) {
     switch (ch) {
     case 'h': //help
       usage(stdout);
@@ -150,6 +150,13 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
       break;
     case 'l': //log file
       strncpy(bt_args->log_file,optarg,FILE_NAME_MAX);
+      break;
+    case 'b': //port
+      bt_args->port = atoi(optarg);
+      if(bt_args->port <= 0){
+        fprintf(stderr,"ERROR: Invalid port number\n");
+        exit(1);
+      }
       break;
     case 'p': //peer
       n_peers++;

@@ -47,6 +47,13 @@ int main (int argc, char * argv[]){
     be_dump(node);
   }
 
+  for(int j=0;j < bt_arts->n_peers; j++){
+    printf("Attempting connection with peer %s on port %d\n");
+
+  }
+
+
+
   //main client loop
   printf("Starting Main Loop\n");
   while(1){
