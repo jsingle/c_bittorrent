@@ -186,7 +186,7 @@ int contact_tracker(bt_args_t * bt_args);
 
 
 //Gets peer handshake
-void get_peer_handshake(peer * p, (putsha1here), char * h_message);
+void get_peer_handshake(peer_t * p, char * sha1, char * h_message);
 
 
 

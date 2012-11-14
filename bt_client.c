@@ -36,7 +36,6 @@ int main (int argc, char * argv[]){
       if(bt_args.peers[i] != NULL)
         print_peer(bt_args.peers[i]);
     }
-
     
   }
 
@@ -53,9 +52,39 @@ int main (int argc, char * argv[]){
   parse_bt_info(&tracker_info,node); 
   printf("tracker announce:\t%s",tracker_info.announce);
   
-  for(int j=0;j < bt_arts->n_peers; j++){
-    printf("Attempting connection with peer %s on port %d\n");
+  int j; 
 
+   
+  //for(j=0;j < bt_args.n_peers; j++){
+  //  printf("Attempting connection with peer %s on port %d\n");
+
+  //}
+
+  peer_t * peer;
+  // TODO move into init_peer function
+  for(i=0;i<MAX_CONNECTIONS;i++){  
+    if(bt_args.peers[i] != NULL)  
+      peer = bt_args.peers[i];
+
+      int sock_fd;              // socket file descriptor
+      sock_fd = socket(AF_INET, SOCK_STREAM, 0); // 0 is sock stream over IP
+    
+      printf("Attempting connection with peer %s on port %d\n",
+           inet_ntoa(peer->sockaddr.sin_addr),
+           peer->port);
+      // Connect to socket A Priori
+      if(connect(
+	  sock_fd, 
+	  (const struct sockaddr*) &(peer -> sockaddr), 
+	  sizeof(peer -> sockaddr))
+          < 0 ){
+      perror("Connection failed");
+      exit(1);
+    }
+    bt_args.sockets[i] = sock_fd;
+    // TODO add sock_fd to bt_args
+    // send handshake
+    //print_peer(bt_args.peers[i]);  
   }
 
   //main client loop

@@ -51,6 +51,7 @@ void __parse_peer(peer_t * peer, char * peer_st){
   char sep[] = ":";
   int i;
 
+  printf("IN PARSE_PEER\n");
   //need to copy becaus strtok mangels things
   parse_str = malloc(strlen(peer_st)+1);
   strncpy(parse_str, peer_st, strlen(peer_st)+1);
