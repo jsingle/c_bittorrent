@@ -34,4 +34,13 @@ void usage(FILE * file);
 void parse_args(bt_args_t * bt_args, int argc,  char ** argv);
 
 
+
+/**
+ * if peers are specified, try to connect to them
+ */
+
+
+
+
+
 #endif
