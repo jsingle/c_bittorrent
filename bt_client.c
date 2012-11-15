@@ -53,58 +53,56 @@ int main (int argc, char * argv[]){
   printf("tracker announce:\t%s",tracker_info.announce);
 
 
-  if(bt_args.n_peers > 0){
-    peer_t * peer;
-    // TODO move into init_peer function
-    for(i=0;i<MAX_CONNECTIONS;i++){  
-      if(bt_args.peers[i] != NULL){  
-        peer = bt_args.peers[i];
+  peer_t * peer;
+  // TODO move into init_peer function
+  for(i=0;i<MAX_CONNECTIONS;i++){  
+    if(bt_args.peers[i] != NULL){  
+      peer = bt_args.peers[i];
 
-        int sock_fd;              // socket file descriptor
-        sock_fd = socket(AF_INET, SOCK_STREAM, 0); // 0 is sock stream over IP
+      int sock_fd;              // socket file descriptor
+      sock_fd = socket(AF_INET, SOCK_STREAM, 0); // 0 is sock stream over IP
 
-        printf("Attempting connection with peer %s on port %d\n",
-            inet_ntoa(peer->sockaddr.sin_addr),
-            peer->port);
+      printf("Attempting connection with peer %s on port %d\n",
+          inet_ntoa(peer->sockaddr.sin_addr),
+          peer->port);
 
-        // Connect to socket A Priori
-        if(connect(
-              sock_fd, 
-              (const struct sockaddr*) &(peer -> sockaddr), 
-              sizeof(peer -> sockaddr))
-            < 0 ){
-          perror("Connection failed");
-          exit(1);
-        }
-
-        bt_args.sockets[i] = sock_fd;
-        // TODO add sock_fd to bt_args
-
-        //handshake message goes in h_message
-        char * h_message;
-        if( (h_message=(char*)malloc(68)) == NULL){
-          //malloc failed
-          fprintf(stderr,"memory error\n");
-          exit(1);
-        }
-        char * sha1;//TODO: sha1
-        get_peer_handshake(peer,sha1,h_message);
-
-        // send handshake
-        int sent = send(sock_fd,h_message,68,0);
-        if(sent != 68){
-          //should be 68...
-          fprintf(stderr,"handshake send error, returned %d\n",sent);
-        }
-
-        //listen
-        //compare to h_message
-
-
-
-        //print_peer(bt_args.peers[i]);  
-
+      // Connect to socket A Priori
+      if(connect(
+            sock_fd, 
+            (const struct sockaddr*) &(peer -> sockaddr), 
+            sizeof(peer -> sockaddr))
+          < 0 ){
+        perror("Connection failed");
+        exit(1);
       }
+
+      bt_args.sockets[i] = sock_fd;
+      // TODO add sock_fd to bt_args
+
+      //handshake message goes in h_message
+      char * h_message;
+      if( (h_message=(char*)malloc(68)) == NULL){
+        //malloc failed
+        fprintf(stderr,"memory error\n");
+        exit(1);
+      }
+      char * sha1;//TODO: sha1
+      get_peer_handshake(peer,sha1,h_message);
+
+      // send handshake
+      int sent = send(sock_fd,h_message,68,0);
+      if(sent != 68){
+        //should be 68...
+        fprintf(stderr,"handshake send error, returned %d\n",sent);
+      }
+
+      //listen
+      //compare to h_message
+
+
+
+      //print_peer(bt_args.peers[i]);  
+
     }
   }
 
