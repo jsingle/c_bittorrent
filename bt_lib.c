@@ -112,16 +112,15 @@ void print_peer(peer_t *peer){
  * return pointer to location of handshake message
  */
 void get_peer_handshake(peer_t * p, char * sha1 , char * h_message){
-  if((h_message = (char *)malloc(68)) == NULL){
+  /*
+   * if((h_message = (char *)malloc(68)) == NULL){
     //malloc failed
     fprintf(stderr,"memory error, get_peer_handshake\n");
     exit(1);  
-  }
+  }*/
   h_message[0] = 19;
   strcpy(&(h_message[1]),"BitTorrent Protocol");
   memset(h_message + 20,0,8);
-  strcpy(&(h_message[28]),sha1);
-  memcpy(&(h_message[48]),p->id,20);
   return;
 }
 
