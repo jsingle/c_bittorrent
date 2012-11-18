@@ -64,7 +64,8 @@ int main (int argc, char * argv[]){
   // TODO move into init_peer function
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL)  
-      peer = bt_args.peers[i];
+      // TODO flesh out add_peer
+      add_peer(peer,&bt_args, hostname,port);
 
       int sock_fd;              // socket file descriptor
       sock_fd = socket(AF_INET, SOCK_STREAM, 0); // 0 is sock stream over IP

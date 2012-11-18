@@ -32,6 +32,13 @@ void calc_id(char * ip, unsigned short port, char *id){
   return;
 }
 
+/*propogate a peer_t struct and add it to the bt_args structure*/
+int add_peer(peer_t *peer, bt_args_t *bt_args, char * hostname, unsigned short port){
+  //bt_args.peers[i] = peer;
+  //peer-> hostname = inet_ntoa(peer->sockaddr.sin_addr),
+  //peer->port;
+}
+
 
 /**
  * init_peer(peer_t * peer, int id, char * ip, unsigned short port) -> int
