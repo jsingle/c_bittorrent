@@ -148,12 +148,12 @@ int main (int argc, char * argv[]){
         fprintf(stderr,"listen error\n");
       }
 */
-      int read_size = read(sock_fd,rh_message,68);
+      int read_size = read(peer_sock_fd,rh_message,68);
       if(read_size != 68){
         //shoule be 68
       }
 
-      if(strcmp(h_message,rh_message,68)){
+      if(strcmp(h_message,rh_message)){
         //don't match
         printf("Handshake attempted, no match, closing connection: %s\n",rh_message);
         //TODO close connection
