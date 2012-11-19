@@ -97,59 +97,20 @@ int main (int argc, char * argv[]){
   parse_bt_info(&tracker_info,node); 
   printf("Tracker Announce:\t%s\n",tracker_info.announce);
 
+  
+  //TODO fix sha1
+  char * sha1;
+  sha1 = tracker_info.announce;
+ 
   peer_t * peer;
   // TODO move into init_peer function
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL){  
       peer = bt_args.peers[i];
       
-      printf("Attempting connection with peer %s on port %d\n",
-          inet_ntoa(peer->sockaddr.sin_addr),
-          peer->port);
-
-      // Create socket to handle peer
-      int peer_sock_fd;
-      peer_sock_fd = socket(AF_INET, SOCK_STREAM, 0); 
-
-      // Connect to socket A Priori
-      if(connect(
-            peer_sock_fd, 
-            (const struct sockaddr*) &(peer -> sockaddr), 
-            sizeof(peer -> sockaddr))
-          < 0 ){
-        perror("Connection failed");
-        exit(1);
-      }
-
-      bt_args.sockets[i] = peer_sock_fd;
-      // TODO add sock_fd to bt_args
-
-      //TODO fix sha1
-      char * sha1;
-      sha1 = tracker_info.announce;
-      
-      get_peer_handshake(peer,sha1,h_message);
-      int sent = send(peer_sock_fd,h_message,68,0);
-      if(sent != 68){
-        //should be 68...
-        fprintf(stderr,"handshake send error, returned %d\n",sent);
-      } 
-      int read_size = read(peer_sock_fd,rh_message,68);
-      if(read_size != 68){
-        printf("Incorrect handshake size received: %d\n",read_size);
-        //continue;
-      }
-      
-      if(memcmp(h_message,rh_message,48)){ //don't match
-        printf("Handshake attempted, no match, closing connection: %s\n",
-            rh_message);
-        close(peer_sock_fd);
-      }else {  //handshake match
-        printf("Handshake successful\n");
-        //TODO: what comes next??
-      }
-
+      int peer_sock_fd = connect_to_peer(peer, sha1);
       //print_peer(bt_args.peers[i]);  
+      bt_args.sockets[i] = peer_sock_fd;
     }
   }
 

@@ -39,8 +39,7 @@ void parse_args(bt_args_t * bt_args, int argc,  char ** argv);
  * if peers are specified, try to connect to them
  */
 
-
-
+int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_message);
 
 
 #endif
