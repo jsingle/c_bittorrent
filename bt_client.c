@@ -173,7 +173,14 @@ int main (int argc, char * argv[]){
     char * sha1;
     sha1 = tracker_info.announce;
     
-    get_peer_handshake(peer,sha1,h_message);
+  h_message[0] = 19;
+  strcpy(&(h_message[1]),"BitTorrent Protocol");
+  memset(h_message + 20,0,8);
+  memcpy(sha1,h_message + 28,20);
+  memcpy(sha1,h_message + 48,20);
+    
+    
+    
     int read_size = read(client_fd,rh_message,68);
     if(read_size != 68){
       printf("Incorrect handshake size received: %d\n",read_size);
