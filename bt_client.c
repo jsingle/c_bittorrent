@@ -17,14 +17,13 @@
 #include "bt_setup.h"
 
 int main (int argc, char * argv[]){
-
   bt_args_t bt_args;
   be_node * node; // top node in the bencoding
   int i;
 
   parse_args(&bt_args, argc, argv);
-
-
+ 
+  // PRINT ARGS
   if(bt_args.verbose){
     printf("Args:\n");
     printf("verbose: %d\n",bt_args.verbose);
@@ -39,6 +38,43 @@ int main (int argc, char * argv[]){
 
   }
 
+ 
+
+  // Initialize a port to listen for incoming connections
+  struct addrinfo hints, *res;
+  int sockfd;              //socket file descriptor
+
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_UNSPEC; // use IPv4 or IPv6, whichever
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE; 
+  
+  char port_str[5];
+
+  //itoa(bt_args.port,port_str,10);// get bt_args.port as str
+  sprintf(port_str, "%d", bt_args.port);
+
+  // TODO get right port here
+  getaddrinfo(NULL,&port_str, &hints, &res);
+  
+  sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+  bind(sockfd, 
+      res -> ai_addr, 
+      res->ai_addrlen);
+
+  fprintf(stderr,"Server bound to socket on socket_fd %d\n",sockfd);
+
+  // initialize socket to listen for incoming
+  if(-1 == listen(
+	sockfd,
+	10) // 10 is the max number of backlogged requests 
+    ){
+
+    perror("Error initializing passive socket to accept incoming connections");
+  }
+ 
+
+
   //read and parse the torrent file
   node = load_be_node(bt_args.torrent_file);
 
@@ -50,7 +86,7 @@ int main (int argc, char * argv[]){
 
   node = load_be_node(bt_args.torrent_file);
   parse_bt_info(&tracker_info,node); 
-  printf("tracker announce:\t%s",tracker_info.announce);
+  printf("tracker announce:\t%s\n",tracker_info.announce);
 
 
   peer_t * peer;
@@ -58,17 +94,18 @@ int main (int argc, char * argv[]){
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL){  
       peer = bt_args.peers[i];
-
-      int sock_fd;              // socket file descriptor
-      sock_fd = socket(AF_INET, SOCK_STREAM, 0); // 0 is sock stream over IP
-
+      
       printf("Attempting connection with peer %s on port %d\n",
           inet_ntoa(peer->sockaddr.sin_addr),
           peer->port);
 
+      // Create socket to handle peer
+      int peer_sock_fd;
+      peer_sock_fd = socket(AF_INET, SOCK_STREAM, 0); 
+
       // Connect to socket A Priori
       if(connect(
-            sock_fd, 
+            peer_sock_fd, 
             (const struct sockaddr*) &(peer -> sockaddr), 
             sizeof(peer -> sockaddr))
           < 0 ){
@@ -76,7 +113,7 @@ int main (int argc, char * argv[]){
         exit(1);
       }
 
-      bt_args.sockets[i] = sock_fd;
+      bt_args.sockets[i] = peer_sock_fd;
       // TODO add sock_fd to bt_args
 
       //handshake message goes in h_message
@@ -86,11 +123,15 @@ int main (int argc, char * argv[]){
         fprintf(stderr,"memory error\n");
         exit(1);
       }
+
+
       char * sha1;//TODO: sha1
+
+      sha1 = &tracker_info.announce;
       get_peer_handshake(peer,sha1,h_message);
 
       // send handshake
-      int sent = send(sock_fd,h_message,68,0);
+      int sent = send(peer_sock_fd,h_message,68,0);
       if(sent != 68){
         //should be 68...
         fprintf(stderr,"handshake send error, returned %d\n",sent);
@@ -114,9 +155,20 @@ int main (int argc, char * argv[]){
   printf("Starting Main Loop\n");
   while(1){
 
-    //try to accept incoming connection from new peer
-       
-    
+    //try to accept incoming connection from new peer 
+    // Wait for a connection on the socket
+    int client_fd;              // socket file descriptor
+    struct sockaddr client_addr;
+    socklen_t client_addr_len; 
+    client_fd = accept(
+	sockfd,//int socket, 
+	&client_addr,//struct sockaddr * address, 
+	&client_addr_len//socklent_t * address_len
+	);
+
+    fprintf(stderr,"Connection established with client\n");
+
+
     //poll current peers for incoming traffic
     //   write pieces to files
     //   udpdate peers choke or unchoke status
