@@ -37,6 +37,7 @@ int add_peer(peer_t *peer, bt_args_t *bt_args, char * hostname, unsigned short p
   //bt_args.peers[i] = peer;
   //peer-> hostname = inet_ntoa(peer->sockaddr.sin_addr),
   //peer->port;
+  return 0;
 }
 
 
@@ -121,6 +122,8 @@ void get_peer_handshake(peer_t * p, char * sha1 , char * h_message){
   h_message[0] = 19;
   strcpy(&(h_message[1]),"BitTorrent Protocol");
   memset(h_message + 20,0,8);
+  memcpy(sha1,h_message + 28,20);
+  memcpy(p->id,h_message + 48,20);
   return;
 }
 

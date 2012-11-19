@@ -140,7 +140,7 @@ int main (int argc, char * argv[]){
         //continue;
       }
       
-      if(memcmp(h_message,rh_message,68)){ //don't match
+      if(memcmp(h_message,rh_message,48)){ //don't match
         printf("Handshake attempted, no match, closing connection: %s\n",
             rh_message);
         close(peer_sock_fd);
@@ -157,51 +157,34 @@ int main (int argc, char * argv[]){
   //main client loop
   printf("Starting Main Loop\n");
   while(1){
-
     //try to accept incoming connection from new peer 
     // Wait for a connection on the socket
     int client_fd;              // socket file descriptor
     struct sockaddr client_addr;
     socklen_t client_addr_len; 
+    printf("Waiting for connection...\n");
     client_fd = accept(
 	sockfd,//int socket, 
 	&client_addr,//struct sockaddr * address, 
 	&client_addr_len//socklent_t * address_len
 	);
       
+    //TODO: fix sha
     char * sha1;
     sha1 = tracker_info.announce;
-    printf("sha1:\n");
-    int j;
-    for(j=0;j<20;j++)
-      printf("%c",sha1[j]);
-    printf("\n");
-
+    
     get_peer_handshake(peer,sha1,h_message);
-    
-    printf("send handshake:\n");
-    for(j=0;j<68;j++)
-      printf("%c",h_message[j]);
-    printf("\n");
-    
     int read_size = read(client_fd,rh_message,68);
     if(read_size != 68){
       printf("Incorrect handshake size received: %d\n",read_size);
       continue;
     }
-
     int sent = send(client_fd,h_message,68,0);
     if(sent != 68){
       //should be 68...
       fprintf(stderr,"handshake send error, returned %d\n",sent);
     } 
-
-    printf("recv handshake:\n");
-    for(j=0;j<68;j++)
-      printf("%c",rh_message[j]);
-    printf("\n");
-
-    if(memcmp(h_message,rh_message,68)){ //don't match
+    if(memcmp(h_message,rh_message,48)){ //don't match
       printf("Handshake attempted, no match, closing connection: %s\n",
           rh_message);
       close(client_fd);
@@ -209,8 +192,6 @@ int main (int argc, char * argv[]){
       printf("Handshake successful\n");
       //TODO: what comes next??
     }
-
-
     fprintf(stderr,"Connection established with client\n");
 
 
