@@ -108,7 +108,7 @@ int main (int argc, char * argv[]){
     if(bt_args.peers[i] != NULL){  
       peer = bt_args.peers[i];
       
-      int peer_sock_fd = connect_to_peer(peer, sha1);
+      int peer_sock_fd = connect_to_peer(peer, sha1, h_message, rh_message);
       //print_peer(bt_args.peers[i]);  
       bt_args.sockets[i] = peer_sock_fd;
     }
