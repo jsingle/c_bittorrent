@@ -123,22 +123,45 @@ int main (int argc, char * argv[]){
         fprintf(stderr,"memory error\n");
         exit(1);
       }
+      char * rh_message;
+      if( (rh_message=(char*)malloc(68)) == NULL){
+        //malloc failed
+        fprintf(stderr,"memory error\n");
+        exit(1);
+      }
 
 
       char * sha1;//TODO: sha1
 
       sha1 = &tracker_info.announce;
       get_peer_handshake(peer,sha1,h_message);
-
       // send handshake
       int sent = send(peer_sock_fd,h_message,68,0);
       if(sent != 68){
         //should be 68...
         fprintf(stderr,"handshake send error, returned %d\n",sent);
       }
+      printf("handshake sent: %s\n",h_message);
+      
+     /*shouldnt need this 
+      if(listen(sock_fd,10) == -1){
+        fprintf(stderr,"listen error\n");
+      }
+*/
+      int read_size = read(sock_fd,rh_message,68);
+      if(read_size != 68){
+        //shoule be 68
+      }
 
-      //listen
-      //compare to h_message
+      if(strcmp(h_message,rh_message,68)){
+        //don't match
+        printf("Handshake attempted, no match, closing connection: %s\n",rh_message);
+        //TODO close connection
+      }else {
+        //match
+        printf("Handshake successful\n");
+        //what comes next??
+      }
 
 
 
