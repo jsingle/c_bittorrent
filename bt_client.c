@@ -36,13 +36,25 @@ int main (int argc, char * argv[]){
         print_peer(bt_args.peers[i]);
     }
 
-  }
-
- 
+  } 
 
   // Initialize a port to listen for incoming connections
   struct addrinfo hints, *res;
-  int sockfd;              //socket file descriptor
+  int sockfd;              //socket file descriptor 
+  
+  //handshake message goes in h_message,
+  //received handshake in rh_message
+  char * h_message, * rh_message;
+  if( (h_message=(char*)malloc(68)) == NULL){
+    //malloc failed
+    fprintf(stderr,"memory error\n");
+    exit(1);
+  }
+  if( (rh_message=(char*)malloc(68)) == NULL){
+    //malloc failed
+    fprintf(stderr,"memory error\n");
+    exit(1);
+  }
 
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_UNSPEC; // use IPv4 or IPv6, whichever
@@ -55,7 +67,7 @@ int main (int argc, char * argv[]){
   sprintf(port_str, "%d", bt_args.port);
 
   // TODO get right port here
-  getaddrinfo(NULL,&port_str, &hints, &res);
+  getaddrinfo(NULL,port_str, &hints, &res);
   
   sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
   bind(sockfd, 
@@ -69,11 +81,8 @@ int main (int argc, char * argv[]){
 	sockfd,
 	10) // 10 is the max number of backlogged requests 
     ){
-
     perror("Error initializing passive socket to accept incoming connections");
-  }
- 
-
+  } 
 
   //read and parse the torrent file
   node = load_be_node(bt_args.torrent_file);
@@ -86,8 +95,7 @@ int main (int argc, char * argv[]){
 
   node = load_be_node(bt_args.torrent_file);
   parse_bt_info(&tracker_info,node); 
-  printf("tracker announce:\t%s\n",tracker_info.announce);
-
+  printf("Tracker Announce:\t%s\n",tracker_info.announce);
 
   peer_t * peer;
   // TODO move into init_peer function
@@ -116,63 +124,35 @@ int main (int argc, char * argv[]){
       bt_args.sockets[i] = peer_sock_fd;
       // TODO add sock_fd to bt_args
 
-      //handshake message goes in h_message
-      char * h_message;
-      if( (h_message=(char*)malloc(68)) == NULL){
-        //malloc failed
-        fprintf(stderr,"memory error\n");
-        exit(1);
-      }
-      char * rh_message;
-      if( (rh_message=(char*)malloc(68)) == NULL){
-        //malloc failed
-        fprintf(stderr,"memory error\n");
-        exit(1);
-      }
-
-
-      char * sha1;//TODO: sha1
-
-      sha1 = &tracker_info.announce;
+      //TODO fix sha1
+      char * sha1;
+      sha1 = tracker_info.announce;
+      
       get_peer_handshake(peer,sha1,h_message);
-      // send handshake
       int sent = send(peer_sock_fd,h_message,68,0);
       if(sent != 68){
         //should be 68...
         fprintf(stderr,"handshake send error, returned %d\n",sent);
-      }
-      printf("handshake sent: %s\n",h_message);
-      
-     /*shouldnt need this 
-      if(listen(sock_fd,10) == -1){
-        fprintf(stderr,"listen error\n");
-      }
-*/
+      } 
       int read_size = read(peer_sock_fd,rh_message,68);
       if(read_size != 68){
-        //shoule be 68
+        printf("Incorrect handshake size received: %d\n",read_size);
+        //continue;
       }
-
-      if(strcmp(h_message,rh_message)){
-        //don't match
-        printf("Handshake attempted, no match, closing connection: %s\n",rh_message);
-        //TODO close connection
-      }else {
-        //match
+      
+      if(memcmp(h_message,rh_message,68)){ //don't match
+        printf("Handshake attempted, no match, closing connection: %s\n",
+            rh_message);
+        close(peer_sock_fd);
+      }else {  //handshake match
         printf("Handshake successful\n");
-        //what comes next??
+        //TODO: what comes next??
       }
-
-
 
       //print_peer(bt_args.peers[i]);  
-
     }
   }
 
-
-  
-  
   
   //main client loop
   printf("Starting Main Loop\n");
@@ -188,6 +168,48 @@ int main (int argc, char * argv[]){
 	&client_addr,//struct sockaddr * address, 
 	&client_addr_len//socklent_t * address_len
 	);
+      
+    char * sha1;
+    sha1 = tracker_info.announce;
+    printf("sha1:\n");
+    int j;
+    for(j=0;j<20;j++)
+      printf("%c",sha1[j]);
+    printf("\n");
+
+    get_peer_handshake(peer,sha1,h_message);
+    
+    printf("send handshake:\n");
+    for(j=0;j<68;j++)
+      printf("%c",h_message[j]);
+    printf("\n");
+    
+    int read_size = read(client_fd,rh_message,68);
+    if(read_size != 68){
+      printf("Incorrect handshake size received: %d\n",read_size);
+      continue;
+    }
+
+    int sent = send(client_fd,h_message,68,0);
+    if(sent != 68){
+      //should be 68...
+      fprintf(stderr,"handshake send error, returned %d\n",sent);
+    } 
+
+    printf("recv handshake:\n");
+    for(j=0;j<68;j++)
+      printf("%c",rh_message[j]);
+    printf("\n");
+
+    if(memcmp(h_message,rh_message,68)){ //don't match
+      printf("Handshake attempted, no match, closing connection: %s\n",
+          rh_message);
+      close(client_fd);
+    }else {  //handshake match
+      printf("Handshake successful\n");
+      //TODO: what comes next??
+    }
+
 
     fprintf(stderr,"Connection established with client\n");
 
@@ -196,13 +218,13 @@ int main (int argc, char * argv[]){
     //   write pieces to files
     //   udpdate peers choke or unchoke status
     //   responses to have/havenots/interested etc.
-    
+
     //for peers that are not choked
     //   request pieaces from outcoming traffic
 
     //check livelenss of peers and replace dead (or useless) peers
     //with new potentially useful peers
-    
+
     //update peers, 
 
   }
