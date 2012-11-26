@@ -7,7 +7,7 @@
 #include "bt_setup.h"
 #include "bt_lib.h"
 #include "bencode.h"
-
+#include <arpa/inet.h>
 
 /**
  * usage(FILE * file) -> void
@@ -198,6 +198,22 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
 
   return ;
 }
+
+
+void print_args(bt_args_t * bt_args){
+    int i;
+    printf("Args:\n");
+    printf("verbose: %d\n",bt_args -> verbose);
+    printf("save_file: %s\n",bt_args -> save_file);
+    printf("log_file: %s\n",bt_args -> log_file);
+    printf("torrent_file: %s\n", bt_args -> torrent_file);
+
+    for(i=0;i<MAX_CONNECTIONS;i++){
+      if(bt_args -> peers[i] != NULL)
+	print_peer(bt_args -> peers[i]);
+    }
+}
+
 
 int parse_bt_info(bt_info_t * out, be_node * node)
 {
