@@ -16,6 +16,7 @@
 #include "bt_lib.h"
 #include "bt_setup.h"
 
+#include <openssl/sha.h> //hashing pieces
 int main (int argc, char * argv[]){
   bt_args_t bt_args;
   be_node * node; // top node in the bencoding
@@ -131,8 +132,9 @@ int main (int argc, char * argv[]){
 	);
       
     //TODO: fix sha
-    char * sha1;
-    sha1 = tracker_info.announce;
+    char shap1[20];
+    
+    SHA1(&(tracker_info.name), FILE_NAME_MAX, shap1[0]); 
     
   h_message[0] = 19;
   strcpy(&(h_message[1]),"BitTorrent Protocol");
