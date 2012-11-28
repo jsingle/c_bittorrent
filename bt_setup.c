@@ -279,8 +279,7 @@ int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_mess
         exit(1);
       }
 
-      // TODO add sock_fd to bt_args
-     
+      // TODO add sock_fd to bt_args 
       get_peer_handshake(peer,sha1,h_message);
       int sent = send(peer_sock_fd,h_message,68,0);
       if(sent != 68){

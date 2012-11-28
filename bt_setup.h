@@ -6,10 +6,8 @@
 #include <unistd.h>
 #include <string.h>
 
-#include "bt_setup.h"
 #include "bt_lib.h"
 #include "bencode.h"
-
 
 /**
  * __parse_peer(peer_t * peer, char peer_st) -> void
@@ -38,8 +36,6 @@ void print_args(bt_args_t * bt_args);
 /**
  * if peers are specified, try to connect to them
  */
-
 int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_message);
-
 
 #endif

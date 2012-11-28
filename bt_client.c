@@ -21,9 +21,11 @@ int main (int argc, char * argv[]){
   bt_args_t bt_args;
   be_node * node; // top node in the bencoding
   int i;
+  char h_message[20];
+  char rh_message[20];
 
   parse_args(&bt_args, argc, argv);
- 
+
   // PRINT ARGS
   if(bt_args.verbose){
     printf("Args:\n");
@@ -34,7 +36,7 @@ int main (int argc, char * argv[]){
 
     for(i=0;i<MAX_CONNECTIONS;i++){
       if(bt_args.peers[i] != NULL)
-        print_peer(bt_args.peers[i]);
+	print_peer(bt_args.peers[i]);
     }
 
   } 
@@ -42,10 +44,10 @@ int main (int argc, char * argv[]){
   // Initialize a port to listen for incoming connections
   struct addrinfo hints, *res;
   int sockfd;              //socket file descriptor 
-  
+
   //handshake message goes in h_message,
   //received handshake in rh_message
-  char * h_message, * rh_message;
+  /*char * h_message, * rh_message;
   if( (h_message=(char*)malloc(68)) == NULL){
     //malloc failed
     fprintf(stderr,"memory error\n");
@@ -56,12 +58,13 @@ int main (int argc, char * argv[]){
     fprintf(stderr,"memory error\n");
     exit(1);
   }
+  */
 
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_UNSPEC; // use IPv4 or IPv6, whichever
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE; 
-  
+
   char port_str[5];
 
   //itoa(bt_args.port,port_str,10);// get bt_args.port as str
@@ -69,7 +72,7 @@ int main (int argc, char * argv[]){
 
   // TODO get right port here
   getaddrinfo(NULL,port_str, &hints, &res);
-  
+
   sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
   bind(sockfd, 
       res -> ai_addr, 
@@ -98,24 +101,21 @@ int main (int argc, char * argv[]){
   parse_bt_info(&tracker_info,node); 
   printf("Tracker Announce:\t%s\n",tracker_info.announce);
 
-  
+
   //TODO fix sha1
   char * sha1;
-  sha1 = tracker_info.announce;
- 
+  sha1 = tracker_info.name;
+
   peer_t * peer;
   // TODO move into init_peer function
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL){  
       peer = bt_args.peers[i];
-      
-      int peer_sock_fd = connect_to_peer(peer, sha1, h_message, rh_message);
-      //print_peer(bt_args.peers[i]);  
-      bt_args.sockets[i] = peer_sock_fd;
+      bt_args.sockets[i] = connect_to_peer(peer, sha1, h_message, rh_message);
     }
   }
 
-  
+
   //main client loop
   printf("Starting Main Loop\n");
   while(1){
@@ -130,20 +130,20 @@ int main (int argc, char * argv[]){
 	&client_addr,//struct sockaddr * address, 
 	&client_addr_len//socklent_t * address_len
 	);
-      
+
+    printf("Accepted connection...\n");
     //TODO: fix sha
-    char shap1[20];
-    
-    SHA1(&(tracker_info.name), FILE_NAME_MAX, shap1[0]); 
-    
-  h_message[0] = 19;
-  strcpy(&(h_message[1]),"BitTorrent Protocol");
-  memset(h_message + 20,0,8);
-  memcpy(sha1,h_message + 28,20);
-  memcpy(sha1,h_message + 48,20);
-    
-    
-    
+
+    //SHA1(ti_name, strlen(ti_name), twenty); 
+
+    char self_id[] = "1232";
+
+    h_message[0] = 19;
+    strcpy(&(h_message[1]),"BitTorrent Protocol");
+    memset(&(h_message[20]),0,8);
+    memcpy(sha1,&(h_message[28]),20);
+    memcpy(self_id,&(h_message[48]),20);
+
     int read_size = read(client_fd,rh_message,68);
     if(read_size != 68){
       printf("Incorrect handshake size received: %d\n",read_size);
@@ -156,13 +156,13 @@ int main (int argc, char * argv[]){
     } 
     if(memcmp(h_message,rh_message,48)){ //don't match
       printf("Handshake attempted, no match, closing connection: %s\n",
-          rh_message);
+	  rh_message);
       close(client_fd);
     }else {  //handshake match
       printf("Handshake successful\n");
+      fprintf(stderr,"Connection established with client\n");
       //TODO: what comes next??
     }
-    fprintf(stderr,"Connection established with client\n");
 
 
     //poll current peers for incoming traffic

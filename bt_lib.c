@@ -121,9 +121,9 @@ void get_peer_handshake(peer_t * p, char * sha1 , char * h_message){
   }*/
   h_message[0] = 19;
   strcpy(&(h_message[1]),"BitTorrent Protocol");
-  memset(h_message + 20,0,8);
-  memcpy(sha1,h_message + 28,20);
-  memcpy(p->id,h_message + 48,20);
+  memset(&(h_message[20]),0,8);
+  memcpy(sha1,&(h_message[28]),20);
+  memcpy(p->id,&(h_message[48]),20);
   return;
 }
 
