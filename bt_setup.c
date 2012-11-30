@@ -258,7 +258,25 @@ int parse_bt_info(bt_info_t * out, be_node * node)
   }
   return 1;
 }
+int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
+  int read_size = read(peer_sock_fd,rh_message,68);
+  if(read_size != 68){
+    printf("Incorrect handshake size received: %d\n",read_size);
+    //continue;
+    return 1;
+  }
 
+  if(memcmp(h_message,rh_message,48)){ //don't match
+    printf("Handshake attempted, no match, closing connection: %s\n",rh_message);
+    close(peer_sock_fd);
+    return 1;
+  }else {  //handshake match
+    printf("Handshake successful\n");
+    return 0;
+  }
+  return 1;
+
+}
 int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_message){
 
       printf("Attempting connection with peer %s on port %d\n",
@@ -281,26 +299,12 @@ int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_mess
 
       // TODO add sock_fd to bt_args 
       get_peer_handshake(peer,sha1,h_message);
+
       int sent = send(peer_sock_fd,h_message,68,0);
-      if(sent != 68){
-        //should be 68...
+      if(sent != 68){//should be 68...
         fprintf(stderr,"handshake send error, returned %d\n",sent);
       } 
-      int read_size = read(peer_sock_fd,rh_message,68);
-      if(read_size != 68){
-        printf("Incorrect handshake size received: %d\n",read_size);
-        //continue;
-      }
-      
-      if(memcmp(h_message,rh_message,48)){ //don't match
-        printf("Handshake attempted, no match, closing connection: %s\n",
-            rh_message);
-        close(peer_sock_fd);
-      }else {  //handshake match
-        printf("Handshake successful\n");
-        //TODO: what comes next??
-      }
-      
+      printf("Sent handshake\n");
+      read_handshake(peer_sock_fd,rh_message,h_message); 
       return peer_sock_fd;
-
 }

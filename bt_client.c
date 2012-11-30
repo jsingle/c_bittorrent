@@ -21,8 +21,8 @@ int main (int argc, char * argv[]){
   bt_args_t bt_args;
   be_node * node; // top node in the bencoding
   int i;
-  char h_message[20];
-  char rh_message[20];
+  char h_message[68];
+  char rh_message[68];
 
   parse_args(&bt_args, argc, argv);
 
@@ -138,31 +138,23 @@ int main (int argc, char * argv[]){
 
     char self_id[] = "1232";
 
+
+    memset(h_message,0,68);
     h_message[0] = 19;
     strcpy(&(h_message[1]),"BitTorrent Protocol");
     memset(&(h_message[20]),0,8);
     memcpy(sha1,&(h_message[28]),20);
     memcpy(self_id,&(h_message[48]),20);
 
-    int read_size = read(client_fd,rh_message,68);
-    if(read_size != 68){
-      printf("Incorrect handshake size received: %d\n",read_size);
-      continue;
-    }
+    if(read_handshake(client_fd,rh_message,h_message)) printf("READ HANDSHAKE failed\n"); 
+
+    // return the message
     int sent = send(client_fd,h_message,68,0);
     if(sent != 68){
       //should be 68...
       fprintf(stderr,"handshake send error, returned %d\n",sent);
     } 
-    if(memcmp(h_message,rh_message,48)){ //don't match
-      printf("Handshake attempted, no match, closing connection: %s\n",
-	  rh_message);
-      close(client_fd);
-    }else {  //handshake match
-      printf("Handshake successful\n");
-      fprintf(stderr,"Connection established with client\n");
-      //TODO: what comes next??
-    }
+    
 
 
     //poll current peers for incoming traffic
