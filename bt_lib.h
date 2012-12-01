@@ -45,6 +45,7 @@
 /*size (in bytes) of id field for peers*/
 #define ID_SIZE 20
 
+#define H_MSG_LEN 68
 
 //holds information about a peer
 typedef struct peer{
@@ -188,6 +189,7 @@ int contact_tracker(bt_args_t * bt_args);
 //Gets peer handshake
 void get_peer_handshake(peer_t * p, char * sha1, char * h_message);
 
-
+// accept new peer
+int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message);
 
 #endif

@@ -9,7 +9,9 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <signal.h>
+#include <errno.h>
 
 
 #include "bencode.h"
@@ -20,87 +22,31 @@
 int main (int argc, char * argv[]){
   bt_args_t bt_args;
   be_node * node; // top node in the bencoding
-  int i;
-  char h_message[68];
-  char rh_message[68];
-
-  parse_args(&bt_args, argc, argv);
+  int i, maxfd,flags,result;
+  struct timeval tv;
+  char h_message[H_MSG_LEN];
+  char rh_message[H_MSG_LEN];
+  // we will always read from read_set and write to write_set;
+  fd_set readset, tempset;
 
   // PRINT ARGS
-  if(bt_args.verbose){
-    printf("Args:\n");
-    printf("verbose: %d\n",bt_args.verbose);
-    printf("save_file: %s\n",bt_args.save_file);
-    printf("log_file: %s\n",bt_args.log_file);
-    printf("torrent_file: %s\n", bt_args.torrent_file);
-
-    for(i=0;i<MAX_CONNECTIONS;i++){
-      if(bt_args.peers[i] != NULL)
-	print_peer(bt_args.peers[i]);
-    }
-
-  } 
+  parse_args(&bt_args, argc, argv);
+  if(bt_args.verbose) print_args(&bt_args);
 
   // Initialize a port to listen for incoming connections
-  struct addrinfo hints, *res;
-  int sockfd;              //socket file descriptor 
-
-  //handshake message goes in h_message,
-  //received handshake in rh_message
-  /*char * h_message, * rh_message;
-  if( (h_message=(char*)malloc(68)) == NULL){
-    //malloc failed
-    fprintf(stderr,"memory error\n");
-    exit(1);
-  }
-  if( (rh_message=(char*)malloc(68)) == NULL){
-    //malloc failed
-    fprintf(stderr,"memory error\n");
-    exit(1);
-  }
-  */
-
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_UNSPEC; // use IPv4 or IPv6, whichever
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE; 
-
-  char port_str[5];
-
-  //itoa(bt_args.port,port_str,10);// get bt_args.port as str
-  sprintf(port_str, "%d", bt_args.port);
-
-  // TODO get right port here
-  getaddrinfo(NULL,port_str, &hints, &res);
-
-  sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-  bind(sockfd, 
-      res -> ai_addr, 
-      res->ai_addrlen);
-
-  fprintf(stderr,"Server bound to socket on socket_fd %d\n",sockfd);
-
-  // initialize socket to listen for incoming
-  if(-1 == listen(
-	sockfd,
-	10) // 10 is the max number of backlogged requests 
-    ){
-    perror("Error initializing passive socket to accept incoming connections");
-  } 
+  int incoming_sockfd;
+  incoming_sockfd = init_incoming_socket(bt_args.port); 
+  // initialize readset
+  FD_ZERO(&readset);
+  FD_SET(incoming_sockfd, &readset);
+  maxfd = incoming_sockfd;
 
   //read and parse the torrent file
   node = load_be_node(bt_args.torrent_file);
-
-  if(bt_args.verbose){
-    be_dump(node);
-  }
-
+  if(bt_args.verbose) be_dump(node);
   bt_info_t tracker_info;
-
   node = load_be_node(bt_args.torrent_file);
   parse_bt_info(&tracker_info,node); 
-  printf("Tracker Announce:\t%s\n",tracker_info.announce);
-
 
   //TODO fix sha1
   char * sha1;
@@ -119,58 +65,43 @@ int main (int argc, char * argv[]){
   //main client loop
   printf("Starting Main Loop\n");
   while(1){
-    //try to accept incoming connection from new peer 
-    // Wait for a connection on the socket
-    int client_fd;              // socket file descriptor
-    struct sockaddr client_addr;
-    socklen_t client_addr_len; 
-    printf("Waiting for connection...\n");
-    client_fd = accept(
-	sockfd,//int socket, 
-	&client_addr,//struct sockaddr * address, 
-	&client_addr_len//socklent_t * address_len
-	);
+    memcpy(&tempset, &readset, sizeof(tempset));
+    tv.tv_sec = 30;
+    tv.tv_usec = 0;
+    result = select(maxfd + 1, &tempset, NULL, NULL, &tv);
 
-    printf("Accepted connection...\n");
-    //TODO: fix sha
+    if (result == 0) {
+      printf("select() timed out!\n");
+    }
+    else if (result < 0 && errno != EINTR) {
+      printf("Error in select(): %s\n", strerror(errno));
+    }
+    else if (result > 0) {
 
-    //SHA1(ti_name, strlen(ti_name), twenty); 
-
-    char self_id[] = "1232";
-
-
-    memset(h_message,0,68);
-    h_message[0] = 19;
-    strcpy(&(h_message[1]),"BitTorrent Protocol");
-    memset(&(h_message[20]),0,8);
-    memcpy(sha1,&(h_message[28]),20);
-    memcpy(self_id,&(h_message[48]),20);
-
-    if(read_handshake(client_fd,rh_message,h_message)) printf("READ HANDSHAKE failed\n"); 
-
-    // return the message
-    int sent = send(client_fd,h_message,68,0);
-    if(sent != 68){
-      //should be 68...
-      fprintf(stderr,"handshake send error, returned %d\n",sent);
-    } 
-    
-
-
-    //poll current peers for incoming traffic
-    //   write pieces to files
-    //   udpdate peers choke or unchoke status
-    //   responses to have/havenots/interested etc.
-
-    //for peers that are not choked
-    //   request pieaces from outcoming traffic
-
-    //check livelenss of peers and replace dead (or useless) peers
-    //with new potentially useful peers
-
-    //update peers, 
-
+      if (FD_ISSET(incoming_sockfd, &tempset)) {
+	int new_client_sockfd;
+        new_client_sockfd = accept_new_peer(incoming_sockfd, sha1,h_message, rh_message);
+      }
+    }
   }
+
+  //   poll current peers for incoming traffic
+  //rc = 
+
+
+
+  //   write pieces to files
+  //   udpdate peers choke or unchoke status
+  //   responses to have/havenots/interested etc.
+
+  //for peers that are not choked
+  //   request pieaces from outcoming traffic
+
+  //check livelenss of peers and replace dead (or useless) peers
+  //with new potentially useful peers
+
+  //update peers, 
+
 
   return 0;
 }

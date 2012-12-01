@@ -308,3 +308,34 @@ int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_mess
       read_handshake(peer_sock_fd,rh_message,h_message); 
       return peer_sock_fd;
 }
+
+
+int init_incoming_socket(int port){
+  struct addrinfo hints, *res;
+
+  int sockfd;              //socket file descriptor 
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_UNSPEC; // use IPv4 or IPv6, whichever
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE; 
+
+  char port_str[5];
+  sprintf(port_str, "%d", port);
+
+  // TODO get right port here
+  getaddrinfo(NULL,port_str, &hints, &res);
+
+  sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+  bind(sockfd, 
+      res -> ai_addr, 
+      res->ai_addrlen);
+
+  fprintf(stderr,"Server bound to socket on socket_fd %d\n",sockfd);
+
+  // initialize socket to listen for incoming
+  if(-1 == listen(sockfd,10)){ // 10 is the max number of backlogged requests 
+    perror("Error initializing passive socket to accept incoming connections");
+  } 
+
+  return sockfd;
+}

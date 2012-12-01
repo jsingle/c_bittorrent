@@ -39,4 +39,6 @@ void print_args(bt_args_t * bt_args);
 int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_message);
 
 int read_handshake(int peer_sock_fd,char * rh_message,char * h_message);
+
+int init_incoming_socket(int port);
 #endif
