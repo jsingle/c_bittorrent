@@ -45,13 +45,13 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   //try to accept incoming connection from new peer 
   // Wait for a connection on the socket
   int client_fd;              // socket file descriptor
-  struct sockaddr client_addr;
+  struct sockaddr_in client_addr;
 
   socklen_t client_addr_len; 
   printf("Waiting for connection...\n");
   client_fd = accept(
       incoming_sockfd,//int socket, 
-      &client_addr,//struct sockaddr * address, 
+      (struct sockaddr_in *) &client_addr,//struct sockaddr * address, 
       &client_addr_len//socklent_t * address_len
       );
 
@@ -62,8 +62,8 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
   char self_id[] = "1232";
 
-
-  bzero(h_message,sizeof(h_message));
+  // Construct and read handshake
+  bzero(h_message,H_MSG_LEN);
   h_message[0] = 19;
   strcpy(&(h_message[1]),"BitTorrent Protocol");
   memset(&(h_message[20]),0,8);
@@ -74,13 +74,31 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
     printf("READ HANDSHAKE failed\n"); 
   }
 
-  // return the message
+  // send handshake in response
   int sent = send(client_fd,h_message,H_MSG_LEN,0);
   if(sent != H_MSG_LEN){
     //should be 68...
     fprintf(stderr,"Handshake wasn't sent correctly, returned %d\n",sent);
   }   
 
+
+  // Make a peer
+  peer_t * peer;
+  peer = malloc(sizeof(peer_t));
+ 
+  char id[20];
+  char* ip = inet_ntoa(client_addr.sin_addr);
+  int port = htons(client_addr.sin_port);
+
+  printf("Attempting connection with peer %s on port %d\n",
+      ip,
+      port);
+
+  //calculate the id, value placed in id
+  calc_id(ip,port,id);
+
+  init_peer(peer, id, ip, port);
+  
   return client_fd;
 }
 

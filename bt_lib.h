@@ -192,4 +192,6 @@ void get_peer_handshake(peer_t * p, char * sha1, char * h_message);
 // accept new peer
 int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message);
 
+int make_bitfield_msg();
+
 #endif

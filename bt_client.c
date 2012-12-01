@@ -26,12 +26,15 @@ int main (int argc, char * argv[]){
   struct timeval tv;
   char h_message[H_MSG_LEN];
   char rh_message[H_MSG_LEN];
+  char buf[1024];
   // we will always read from read_set and write to write_set;
   fd_set readset, tempset;
 
-  // PRINT ARGS
+  // Parse and print args
   parse_args(&bt_args, argc, argv);
   if(bt_args.verbose) print_args(&bt_args);
+
+ 
 
   // Initialize a port to listen for incoming connections
   int incoming_sockfd;
@@ -52,12 +55,21 @@ int main (int argc, char * argv[]){
   char * sha1;
   sha1 = tracker_info.name;
 
+  // TODO Create bitfield
+
+  bt_bitfield_t bfield;
+  bfield.size = (tracker_info.num_pieces)/sizeof(char);
+  bfield.bitfield = malloc(
+    (tracker_info.num_pieces)/sizeof(char)
+  );
+
+
   peer_t * peer;
-  // TODO move into init_peer function
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL){  
       peer = bt_args.peers[i];
       bt_args.sockets[i] = connect_to_peer(peer, sha1, h_message, rh_message);
+      FD_SET(bt_args.sockets[i], &readset); // add to master set
     }
   }
 
@@ -77,18 +89,62 @@ int main (int argc, char * argv[]){
       printf("Error in select(): %s\n", strerror(errno));
     }
     else if (result > 0) {
-
-      if (FD_ISSET(incoming_sockfd, &tempset)) {
-	int new_client_sockfd;
-        new_client_sockfd = accept_new_peer(incoming_sockfd, sha1,h_message, rh_message);
+      for(i = 0; i <= maxfd; i++) {
+	// if there is a new connection
+	if (FD_ISSET(i, &tempset)) {
+	  if(i == incoming_sockfd){
+	    int new_client_sockfd;
+	    new_client_sockfd = accept_new_peer(incoming_sockfd, sha1,h_message, rh_message);
+	    FD_SET(new_client_sockfd, &readset); // add to master set
+	    if (new_client_sockfd > maxfd) { // keep track of the max
+	      maxfd = new_client_sockfd;
+	    }
+	    // TODO send bitfield
+	    bt_msg_t bitfield_msg;
+	    bitfield_msg.length = 1+bfield.size;
+	    bitfield_msg.bt_type = BT_BITFILED;
+	    bitfield_msg.payload.bitfiled = bfield;
+            int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
+	    printf("Bitfield sent!\n");
+	  }
+	  else { 
+	    // otherwise someone else is sending us something
+            
+	    int message_len;
+	    read(i,&message_len,sizeof(int));
+	    unsigned char bt_type;
+	    read(i,&bt_type,sizeof(bt_type));
+	    // switch on type of bt_message and handle accordingly
+	    // TODO change the rest of these to #define vals
+            switch(i){
+            case 0: //choke
+	      break;
+            case 1: //unchoke
+	      break;
+	    case 2: //interested
+	      break;
+	    case 3: //not interested
+	      break;
+	    case 4: //have
+	      break;
+	    case BT_BITFILED: //bitfield
+	      printf("bitfield received\n");
+	      //read(i,&buf,sizeof(message_len));
+	      
+	      // reply with bitfield
+	      break;
+	    case 6: //request
+	      break; 
+	    case 7: //piece
+	      break;
+	    case 8: //cancel
+	      break;
+	    }
+	  }
+	}
       }
     }
   }
-
-  //   poll current peers for incoming traffic
-  //rc = 
-
-
 
   //   write pieces to files
   //   udpdate peers choke or unchoke status
