@@ -18,15 +18,31 @@
 #include "bt_lib.h"
 #include "bt_setup.h"
 
+#define BUF_LEN 1024
+
 #include <openssl/sha.h> //hashing pieces
+
+int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield){
+  // TODO send bitfield
+  bt_msg_t bitfield_msg;
+  bitfield_msg.length = 1+bfield.size;
+  bitfield_msg.bt_type = BT_BITFILED;
+  bitfield_msg.payload.bitfiled = bfield;
+  int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
+  printf("Bitfield sent!\n");
+  return sent;
+}
+
+
+
 int main (int argc, char * argv[]){
   bt_args_t bt_args;
   be_node * node; // top node in the bencoding
-  int i, maxfd,flags,result;
+  int i, maxfd,flags,result, read_size;
   struct timeval tv;
   char h_message[H_MSG_LEN];
   char rh_message[H_MSG_LEN];
-  char buf[1024];
+  char buf[BUF_LEN];
   // we will always read from read_set and write to write_set;
   fd_set readset, tempset;
 
@@ -58,11 +74,12 @@ int main (int argc, char * argv[]){
   // TODO Create bitfield
 
   bt_bitfield_t bfield;
-  bfield.size = (tracker_info.num_pieces)/sizeof(char);
+  bfield.size = (tracker_info.num_pieces)/8 + 1;
   bfield.bitfield = malloc(
-    (tracker_info.num_pieces)/sizeof(char)
+    (tracker_info.num_pieces)/8 + 1
   );
-
+  bzero(&bfield.bitfield,sizeof(tracker_info.num_pieces)/8 + 1);
+  printf("Bitfield created with length: %d\n",tracker_info.num_pieces/8 + 1);
 
   peer_t * peer;
   for(i=0;i<MAX_CONNECTIONS;i++){  
@@ -70,6 +87,9 @@ int main (int argc, char * argv[]){
       peer = bt_args.peers[i];
       bt_args.sockets[i] = connect_to_peer(peer, sha1, h_message, rh_message);
       FD_SET(bt_args.sockets[i], &readset); // add to master set
+      if (bt_args.sockets[i] > maxfd) { // keep track of the max
+	maxfd = bt_args.sockets[i];
+      }
     }
   }
 
@@ -83,7 +103,7 @@ int main (int argc, char * argv[]){
     result = select(maxfd + 1, &tempset, NULL, NULL, &tv);
 
     if (result == 0) {
-      printf("select() timed out!\n");
+      printf("30 seconds of inactivity\n");
     }
     else if (result < 0 && errno != EINTR) {
       printf("Error in select(): %s\n", strerror(errno));
@@ -105,7 +125,7 @@ int main (int argc, char * argv[]){
 	    bitfield_msg.bt_type = BT_BITFILED;
 	    bitfield_msg.payload.bitfiled = bfield;
             int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
-	    printf("Bitfield sent!\n");
+	    printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",bitfield_msg.length,sent);
 	  }
 	  else { 
 	    // otherwise someone else is sending us something
@@ -116,28 +136,33 @@ int main (int argc, char * argv[]){
 	    read(i,&bt_type,sizeof(bt_type));
 	    // switch on type of bt_message and handle accordingly
 	    // TODO change the rest of these to #define vals
-            switch(i){
-            case 0: //choke
+            switch(bt_type){
+            case BT_CHOKE: //choke
 	      break;
-            case 1: //unchoke
+            case BT_UNCHOKE: //unchoke
 	      break;
-	    case 2: //interested
+	    case BT_INTERSTED: //interested
 	      break;
-	    case 3: //not interested
+	    case BT_NOT_INTERESTED: //not interested
 	      break;
-	    case 4: //have
+	    case BT_HAVE: //have
 	      break;
 	    case BT_BITFILED: //bitfield
 	      printf("bitfield received\n");
-	      //read(i,&buf,sizeof(message_len));
-	      
+	      do{
+		read_size = read(i,&buf,BUF_LEN);
+		printf("buf contains: %s\n",buf);
+	      }while(read_size == BUF_LEN);
+
+	      send_bitfield(i,bfield);
+
 	      // reply with bitfield
 	      break;
-	    case 6: //request
+	    case BT_REQUEST: //request
 	      break; 
-	    case 7: //piece
+	    case BT_PIECE: //piece
 	      break;
-	    case 8: //cancel
+	    case BT_CANCEL: //cancel
 	      break;
 	    }
 	  }
