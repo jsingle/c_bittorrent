@@ -45,6 +45,10 @@ int main (int argc, char * argv[]){
   char buf[BUF_LEN];
   int npeers=0;
 
+  //used for logging in main loop
+  char msg[25];
+  char msginfo[50];
+
   log_info log;
   float ms;
   int len;
@@ -84,26 +88,24 @@ int main (int argc, char * argv[]){
   sha1 = tracker_info.name;
 
   // TODO Create bitfield
-
   bt_bitfield_t bfield;
-  bfield.size = (tracker_info.num_pieces)/8 + 1;
-  bfield.bitfield = malloc(
-      (tracker_info.num_pieces)/8 + 1
-      );
-
-  bzero(&bfield.bitfield,(tracker_info.num_pieces)/8 + 1);
-  printf("Bitfield created with length: %d\n",
-      tracker_info.num_pieces/8 + 1);
+  bfield.size = tracker_info.num_pieces/8 +1;
+  bfield.bitfield = malloc(bfield.size);
+  bzero(&bfield.bitfield,bfield.size);
+  printf("Bitfield created with length: %d\n",bfield.size);
 
   peer_t * peer;
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL){
       npeers++;
+      //setup peer btfields
       peer = bt_args.peers[i];
+      peer->btfield = malloc(bfield.size);
+      bzero(peer->btfield,bfield.size);
       gettimeofday(&(log.cur_tv),NULL);
       ms = (log.cur_tv.tv_sec - log.start_tv.tv_sec)*1000;
       ms += (log.cur_tv.tv_usec - log.start_tv.tv_usec)/1000;
-      len = snprintf(log.logmsg,100,"%f HANDSHAKE INIT peer:%s port:%d id:\n",
+      len = snprintf(log.logmsg,100,"%.2f HANDSHAKE INIT peer:%s port:%d id:\n",
           ms,inet_ntoa(peer->sockaddr.sin_addr),peer->port);
       int logwr = fwrite(log.logmsg,len,1,log.log_file);
 
@@ -114,7 +116,7 @@ int main (int argc, char * argv[]){
         gettimeofday(&(log.cur_tv),NULL);
         ms = (log.cur_tv.tv_sec - log.start_tv.tv_sec)*1000;
         ms += (log.cur_tv.tv_usec - log.start_tv.tv_usec)/1000;
-        len = snprintf(log.logmsg,100,"%f HANDSHAKE FAILED peer:%s port:%d id:\n",
+        len = snprintf(log.logmsg,100,"%.2f HANDSHAKE FAILED peer:%s port:%d id:\n",
             ms,inet_ntoa(peer->sockaddr.sin_addr),peer->port);
         logwr = fwrite(log.logmsg,len,1,log.log_file);
 
@@ -139,13 +141,14 @@ int main (int argc, char * argv[]){
         gettimeofday(&(log.cur_tv),NULL);
         ms = (log.cur_tv.tv_sec - log.start_tv.tv_sec)*1000;
         ms += (log.cur_tv.tv_usec - log.start_tv.tv_usec)/1000;
-        len = snprintf(log.logmsg,100,"%f HANDSHAKE SUCCESS peer:%s port:%d id:\n",
+        len = snprintf(log.logmsg,100,"%.2f HANDSHAKE SUCCESS peer:%s port:%d id:\n",
             ms,inet_ntoa(peer->sockaddr.sin_addr),peer->port);
         logwr = fwrite(log.logmsg,len,1,log.log_file);
         FD_SET(bt_args.sockets[i], &readset); // add to master set
         if (bt_args.sockets[i] > maxfd) { // keep track of the max
           maxfd = bt_args.sockets[i];
         }
+        send_bitfield(bt_args.sockets[i],bfield);
       }
     }else{//no more peers left
       break;
@@ -206,7 +209,7 @@ int main (int argc, char * argv[]){
           }
           else { 
             // otherwise someone else is sending us something
-            
+
             // find the peer in the list
             peerpos=-1;
             for(j=0;j<MAX_CONNECTIONS;j++){
@@ -226,16 +229,43 @@ int main (int argc, char * argv[]){
             read(i,&bt_type,sizeof(bt_type));
             // switch on type of bt_message and handle accordingly
             // TODO change the rest of these to #define vals
+            gettimeofday(&(log.cur_tv),NULL);
+            ms = (log.cur_tv.tv_sec - log.start_tv.tv_sec)*1000;
+            ms += (log.cur_tv.tv_usec - log.start_tv.tv_usec)/1000;
+                int have;
+                unsigned char bhave;
+                int charpos;
+
             switch(bt_type){
               case BT_CHOKE: //choke
+                bt_args.peers[peerpos]->imchoked=1;
+                strcpy(msg,"MESSAGE CHOKE FROM");
+                strcpy(msg,"");
                 break;
               case BT_UNCHOKE: //unchoke
+                bt_args.peers[peerpos]->imchoked=0;
+                strcpy(msg,"MESSAGE UNCHOKE FROM");
+                strcpy(msg,"");
                 break;
               case BT_INTERSTED: //interested
+                bt_args.peers[peerpos]->interested=1;
+                strcpy(msg,"MESSAGE INTERESTED FROM");
+                strcpy(msg,"");
                 break;
               case BT_NOT_INTERESTED: //not interested
+                bt_args.peers[peerpos]->interested=0;
+                strcpy(msg,"MESSAGE NOT INTERESTED FROM");
+                strcpy(msg,"");
                 break;
               case BT_HAVE: //have
+                read(i,&have,message_len-1);
+                bhave = 1;
+                charpos = have%8;
+                charpos = 7-charpos;
+                bhave<<charpos;
+                bt_args.peers[peerpos]->btfield[have/8] |= bhave;
+                strcpy(msg,"MESSAGE HAVE FROM");
+                snprintf(msginfo,50,"have:%d",have);
                 break;
               case BT_BITFILED: //bitfield
                 printf("bitfield received\n");
@@ -247,14 +277,30 @@ int main (int argc, char * argv[]){
                 send_bitfield(i,bfield);
 
                 // reply with bitfield
+                strcpy(msg,"MESSAGE BITFIELD FROM");
+                //TODO: log
+                //snprintf(msginfo,50,"bitfield:%s",buf);
                 break;
               case BT_REQUEST: //request
+                strcpy(msg,"MESSAGE REQUEST FROM");
+                //TODO: log
+                //snprintf(msginfo,50,"bitfield:%s",buf);
                 break; 
               case BT_PIECE: //piece
+                strcpy(msg,"MESSAGE PIECE FROM");
+                //TODO: log
+                //snprintf(msginfo,50,"bitfield:%s",buf);
                 break;
               case BT_CANCEL: //cancel
+                strcpy(msg,"MESSAGE CANCEL FROM");
+                //TODO: log
+                //snprintf(msginfo,50,"bitfield:%s",buf);
                 break;
             }
+            len = snprintf(&(log.logmsg[len]),100,"%.2f %s id:%s %s\n",
+                ms,msg,bt_args.peers[peerpos]->id,msginfo);
+            fwrite(log.logmsg,len,1,log.log_file);
+            fflush(log.log_file);
           }
         }
       }

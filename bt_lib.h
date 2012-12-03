@@ -62,6 +62,8 @@ typedef struct peer{
   struct sockaddr_in sockaddr; //sockaddr for peer
   int choked; //peer choked?
   int interested; //peer interested?
+  int imchoked;
+  char * btfield;
 }peer_t;
 
 
