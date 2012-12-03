@@ -154,8 +154,8 @@ int main (int argc, char * argv[]){
                 if (new_client_sockfd > maxfd) { // keep track of the max
                   maxfd = new_client_sockfd;
                 }
-                // TODO send bitfield
-        
+                // TODO send bitfiel
+                bt_args.sockets[peerpos] = new_client_sockfd;
                 send_bitfield(new_client_sockfd,bfield);
               }
             }
