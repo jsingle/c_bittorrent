@@ -149,24 +149,21 @@ int main (int argc, char * argv[]){
               if(accept_new_peer(incoming_sockfd, sha1,h_message, rh_message,
                     &new_client_sockfd, &log,bt_args.peers[peerpos])){
               }else{
+                // accept new peer succeeded
                 FD_SET(new_client_sockfd, &readset); // add to master set
                 if (new_client_sockfd > maxfd) { // keep track of the max
                   maxfd = new_client_sockfd;
                 }
                 // TODO send bitfield
-                bt_msg_t bitfield_msg;
-                bitfield_msg.length = 1+bfield.size;
-                bitfield_msg.bt_type = BT_BITFILED;
-                bitfield_msg.payload.bitfiled = bfield;
-                int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
-                printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",bitfield_msg.length,sent);
+        
+                send_bitfield(new_client_sockfd,bfield);
               }
             }
           }
           else { 
             int message_len;
-            read(i,&message_len,sizeof(int));
-            
+            int read_msglen = read(i,&message_len,sizeof(int));
+           printf("received %d from file descripter : %d\n",read_msglen,i); 
             if(!message_len) continue;
             // otherwise someone else is sending us something
 
@@ -184,7 +181,13 @@ int main (int argc, char * argv[]){
             }
 
             unsigned char bt_type;
-            read(i,&bt_type,sizeof(bt_type));
+            int how_much = read(i,&bt_type,sizeof(bt_type));
+
+            printf("READ: %3d \t BT_TYPE : %d \n",how_much,bt_type);
+            if (!how_much){
+              printf("READ FAILED");
+              //exit(1);
+            }
             // switch on type of bt_message and handle accordingly
             // TODO change the rest of these to #define vals
             int have;

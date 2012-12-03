@@ -18,11 +18,11 @@
 int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield){
   // TODO send bitfield
   bt_msg_t bitfield_msg;
-  bitfield_msg.length = 1+bfield.size;
+  bitfield_msg.length = sizeof(int) +bfield.size;
   bitfield_msg.bt_type = BT_BITFILED;
   bitfield_msg.payload.bitfiled = bfield;
   int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
-  printf("Bitfield sent!\n");
+  printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",bitfield_msg.length,sent);
   return sent;
 }
 
