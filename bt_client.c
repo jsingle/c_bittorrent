@@ -182,6 +182,7 @@ int main (int argc, char * argv[]){
               exit(1);
             }
 
+            peer = bt_args.peers[j];
             unsigned char bt_type;
             int how_much = read(i,&bt_type,sizeof(bt_type));
 
@@ -228,10 +229,10 @@ int main (int argc, char * argv[]){
                 break;
               case BT_BITFILED: //bitfield
                 printf("bitfield received\n");
-                do{
-                  read_size = read(i,&buf,BUF_LEN);
+                //do{
+                  read_size = read(i,peer -> btfield,bfield.size);
                   printf("buf contains: %s\n",buf);
-                }while(read_size == BUF_LEN);
+                //}while(read_size == BUF_LEN);
 
                 send_bitfield(i,bfield);
 
