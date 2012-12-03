@@ -135,7 +135,6 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
 
   // Make a peer
-  peer = malloc(sizeof(peer_t));
 
   printf("Attempting connection with peer %s on port %d\n",
       ip,

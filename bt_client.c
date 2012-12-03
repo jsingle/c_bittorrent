@@ -31,7 +31,6 @@ int main (int argc, char * argv[]){
   char h_message[H_MSG_LEN];
   char rh_message[H_MSG_LEN];
   char buf[BUF_LEN];
-  int npeers=0;
 
   //used for logging in main loop
   char msg[25];
@@ -146,8 +145,11 @@ int main (int argc, char * argv[]){
             if(peerpos==-1){
               printf("Unable to accept new connection - already at max\n");
             }else{
+              bt_args.peers[peerpos] = malloc(sizeof(peer_t));
               if(accept_new_peer(incoming_sockfd, sha1,h_message, rh_message,
                     &new_client_sockfd, &log,bt_args.peers[peerpos])){
+                free(bt_args.peers[peerpos]);
+                bt_args.peers[peerpos] = NULL;
               }else{
                 // accept new peer succeeded
                 FD_SET(new_client_sockfd, &readset); // add to master set
