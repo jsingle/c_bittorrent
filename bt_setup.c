@@ -22,16 +22,16 @@ void usage(FILE * file){
   }
 
   fprintf(file,
-          "bt-client [OPTIONS] file.torrent\n"
-          "  -h            \t Print this help screen\n"
-          "  -b ip         \t Bind to this port\n"
-          "  -s save_file  \t Save the torrent in directory save_dir (dflt: .)\n"
-          "  -l log_file   \t Save logs to log_filw (dflt: bt-client.log)\n"
-          "  -p ip:port    \t Instead of contacing the tracker for a peer list,\n"
-          "                \t use this peer instead, ip:port (ip or hostname)\n"
-          "                \t (include multiple -p for more than 1 peer)\n"
-          "  -I id         \t Set the node identifier to id (dflt: random)\n"
-          "  -v            \t verbose, print additional verbose info\n");
+      "bt-client [OPTIONS] file.torrent\n"
+      "  -h            \t Print this help screen\n"
+      "  -b port         \t Bind to this port\n"
+      "  -s save_file  \t Save the torrent in directory save_dir (dflt: .)\n"
+      "  -l log_file   \t Save logs to log_filw (dflt: bt-client.log)\n"
+      "  -p ip:port    \t Instead of contacing the tracker for a peer list,\n"
+      "                \t use this peer instead, ip:port (ip or hostname)\n"
+      "                \t (include multiple -p for more than 1 peer)\n"
+      "  -I id         \t Set the node identifier to id (dflt: random)\n"
+      "  -v            \t verbose, print additional verbose info\n");
 }
 
 /**
@@ -41,13 +41,12 @@ void usage(FILE * file){
  *
  * ERRORS: Will exit on various errors
  **/
-
 void __parse_peer(peer_t * peer, char * peer_st){
   char * parse_str;
   char * word;
   unsigned short port;
   char * ip;
-  char id[20];
+  char id[ID_SIZE];
   char sep[] = ":";
   int i;
 
@@ -56,7 +55,7 @@ void __parse_peer(peer_t * peer, char * peer_st){
   parse_str = malloc(strlen(peer_st)+1);
   strncpy(parse_str, peer_st, strlen(peer_st)+1);
 
-  //only can have 2 tokens max, but may have less
+  ///only can have 2 tokens max, but may have less
   for(word = strtok(parse_str, sep), i=0; 
       (word && i < 3); 
       word = strtok(NULL,sep), i++){
@@ -258,14 +257,24 @@ int parse_bt_info(bt_info_t * out, be_node * node)
   }
   return 1;
 }
+
+
+
 int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
   int read_size = read(peer_sock_fd,rh_message,68);
+  if(read_size == -1){
+    perror("Read Handshake Failed");
+    return 1;
+  }
+  
+  
   if(read_size != 68){
     printf("Incorrect handshake size received: %d\n",read_size);
     //continue;
     return 1;
   }
 
+  //TODO: compare full handshake, need our IP
   if(memcmp(h_message,rh_message,48)){ //don't match
     printf("Handshake attempted, no match, closing connection: %s\n",rh_message);
     close(peer_sock_fd);
@@ -275,9 +284,12 @@ int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
     return 0;
   }
   return 1;
-
 }
-int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_message){
+
+
+//initializes connection, using handshake, with given peer
+int connect_to_peer(peer_t * peer, char * sha1, char * h_message, 
+    char * rh_message, int * sfd){
 
       printf("Attempting connection with peer %s on port %d\n",
           inet_ntoa(peer->sockaddr.sin_addr),
@@ -286,6 +298,7 @@ int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_mess
       // Create socket to handle peer
       int peer_sock_fd;
       peer_sock_fd = socket(AF_INET, SOCK_STREAM, 0); 
+      get_peer_handshake(peer,sha1,h_message);
 
       // Connect to socket A Priori
       if(connect(
@@ -294,19 +307,17 @@ int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_mess
             sizeof(peer -> sockaddr))
           < 0 ){
         perror("Connection failed");
-        exit(1);
+        return 1;
       }
 
-      // TODO add sock_fd to bt_args 
-      get_peer_handshake(peer,sha1,h_message);
 
       int sent = send(peer_sock_fd,h_message,68,0);
       if(sent != 68){//should be 68...
         fprintf(stderr,"handshake send error, returned %d\n",sent);
       } 
       printf("Sent handshake\n");
-      read_handshake(peer_sock_fd,rh_message,h_message); 
-      return peer_sock_fd;
+      *sfd = peer_sock_fd;
+      return read_handshake(peer_sock_fd,rh_message,h_message);
 }
 
 
@@ -330,7 +341,9 @@ int init_incoming_socket(int port){
       res -> ai_addr, 
       res->ai_addrlen);
 
-  fprintf(stderr,"Server bound to socket on socket_fd %d\n",sockfd);
+
+  fprintf(stderr,"Server bound to socket on socket_fd %d, on port %s\n",
+      sockfd,port_str);
 
   // initialize socket to listen for incoming
   if(-1 == listen(sockfd,10)){ // 10 is the max number of backlogged requests 

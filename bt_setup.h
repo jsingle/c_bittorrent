@@ -36,7 +36,7 @@ void print_args(bt_args_t * bt_args);
 /**
  * if peers are specified, try to connect to them
  */
-int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_message);
+int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_message,int * sfd);
 
 int read_handshake(int peer_sock_fd,char * rh_message,char * h_message);
 

@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
@@ -6,7 +5,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-
+#include <sys/time.h>
 #include <sys/stat.h>
 #include <arpa/inet.h>
 
@@ -27,7 +26,7 @@ void calc_id(char * ip, unsigned short port, char *id){
 
   //id is just the SHA1 of the ip and port string
   //TODO uncomment this
-  //SHA1((unsigned char *) data, len, (unsigned char *) id); 
+  SHA1((unsigned char *) data, len, (unsigned char *) id); 
 
   return;
 }
@@ -41,20 +40,32 @@ int add_peer(peer_t *peer, bt_args_t *bt_args, char * hostname, unsigned short p
 }
 
 
-int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message){
+int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message, int * newfd, log_info * log, peer_t * peer){
+  float ms;
+  int len;
   //try to accept incoming connection from new peer 
   // Wait for a connection on the socket
   int client_fd;              // socket file descriptor
   struct sockaddr_in client_addr;
 
-  socklen_t client_addr_len; 
+  socklen_t client_addr_len = sizeof(client_addr); 
   printf("Waiting for connection...\n");
   client_fd = accept(
       incoming_sockfd,//int socket, 
-      (struct sockaddr_in *) &client_addr,//struct sockaddr * address, 
+      (struct sockaddr *) &client_addr,//struct sockaddr * address, 
       &client_addr_len//socklent_t * address_len
       );
 
+  if(client_fd == -1){
+    perror("Accept New Peer Failed");
+    gettimeofday(&(log->cur_tv),NULL);
+    ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
+    ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
+    len = snprintf(log->logmsg,100,"%f HANDSHAKE FAILED accept failed\n",ms);
+    fwrite(log->logmsg,len,1,log->log_file);
+
+    return 1;
+  }
   printf("Accepted connection...\n");
   //TODO: fix sha
 
@@ -67,11 +78,43 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   h_message[0] = 19;
   strcpy(&(h_message[1]),"BitTorrent Protocol");
   memset(&(h_message[20]),0,8);
-  memcpy(sha1,&(h_message[28]),20);
-  memcpy(self_id,&(h_message[48]),20);
+  memcpy(&(h_message[28]),sha1,20);
+  memcpy(&(h_message[48]),self_id,20);
 
-  if(read_handshake(client_fd,rh_message,h_message)){
-    printf("READ HANDSHAKE failed\n"); 
+  int rh_ret = read_handshake(client_fd,rh_message,h_message);
+  char * ip;
+  int port;
+  char id[21];
+  ip = inet_ntoa(client_addr.sin_addr);
+  port = htons(client_addr.sin_port);
+  calc_id(ip,port,id);
+  id[20] = '\0';
+
+  if(rh_ret){   //read failed
+    printf("READ HANDSHAKE failed\n");
+    gettimeofday(&(log->cur_tv),NULL);
+    ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
+    ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
+    len = snprintf(log->logmsg,100,"%f HANDSHAKE FAILED peer:%s port:%d id:i%20s\n",
+        ms,ip,port,id);
+    fwrite(log->logmsg,len,1,log->log_file);
+
+
+    //log contents of handshake, unnecessary
+    int j;
+    for(j=0;j<68;++j){
+      len = snprintf(log->logmsg,100,"%d ",h_message[j]);
+      fwrite(log->logmsg,len,1,log->log_file);
+    }
+    fwrite("\n",1,1,log->log_file);
+    for(j=0;j<68;++j){
+      len = snprintf(log->logmsg,100,"%d ",rh_message[j]);
+      fwrite(log->logmsg,len,1,log->log_file);
+    }
+    fwrite("\n",1,1,log->log_file);
+    
+    
+    return 1;
   }
 
   // send handshake in response
@@ -79,27 +122,33 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   if(sent != H_MSG_LEN){
     //should be 68...
     fprintf(stderr,"Handshake wasn't sent correctly, returned %d\n",sent);
+    gettimeofday(&(log->cur_tv),NULL);
+    ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
+    ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
+    len = snprintf(log->logmsg,100,"%f HANDSHAKE SEND FAILED peer:%s port:%d id:%20s\n",
+        ms,ip,port,id);
+    fwrite(log->logmsg,len,1,log->log_file);
+    return 1;
   }   
 
 
   // Make a peer
-  peer_t * peer;
   peer = malloc(sizeof(peer_t));
- 
-  char id[20];
-  char* ip = inet_ntoa(client_addr.sin_addr);
-  int port = htons(client_addr.sin_port);
 
   printf("Attempting connection with peer %s on port %d\n",
       ip,
       port);
 
-  //calculate the id, value placed in id
-  calc_id(ip,port,id);
 
   init_peer(peer, id, ip, port);
-  
-  return client_fd;
+  *newfd = client_fd;
+  gettimeofday(&(log->cur_tv),NULL);
+  ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
+  ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
+  len = snprintf(log->logmsg,100,"%f HANDSHAKE SUCCESS peer:%s port:%d id:%20s\n",
+      ms,inet_ntoa(peer->sockaddr.sin_addr),peer->port,id);
+  fwrite(log->logmsg,len,1,log->log_file);
+  return 0;
 }
 
 /**
@@ -143,7 +192,6 @@ int init_peer(peer_t *peer, char * id, char * ip, unsigned short port){
   peer->sockaddr.sin_port = htons(port);
 
   return 0;
-
 }
 
 /**
@@ -157,8 +205,8 @@ void print_peer(peer_t *peer){
 
   if(peer){
     printf("peer: %s:%u ",
-	inet_ntoa(peer->sockaddr.sin_addr),
-	peer->port);
+        inet_ntoa(peer->sockaddr.sin_addr),
+        peer->port);
     printf("id: ");
     for(i=0;i<ID_SIZE;i++){
       printf("%02x",peer->id[i]);
@@ -177,8 +225,8 @@ void get_peer_handshake(peer_t * p, char * sha1 , char * h_message){
   h_message[0] = 19;
   strcpy(&(h_message[1]),"BitTorrent Protocol");
   memset(&(h_message[20]),0,8);
-  memcpy(sha1,&(h_message[28]),20);
-  memcpy(p->id,&(h_message[48]),20);
+  memcpy(&(h_message[28]),sha1,20);
+  memcpy(&(h_message[48]),p->id,20);
   return;
 }
 

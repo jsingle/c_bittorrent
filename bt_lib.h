@@ -47,6 +47,14 @@
 
 #define H_MSG_LEN 68
 
+
+typedef struct {
+  FILE * log_file;
+  struct timeval start_tv, cur_tv;
+  char logmsg[100];
+} log_info;
+
+
 //holds information about a peer
 typedef struct peer{
   unsigned char id[ID_SIZE]; //the peer id
@@ -64,7 +72,9 @@ typedef struct {
   int piece_length; //number of bytes in each piece
   int length; //length of the file in bytes
   int num_pieces; //number of pieces, computed based on above two values
-  char ** piece_hashes; //pointer to 20 byte data buffers containing the sha1sum of each of the pieces
+
+  //pointer to 20 byte data buffers of the sha1sum of each of the pieces:
+  char ** piece_hashes; 
 } bt_info_t;
 
 
@@ -78,8 +88,9 @@ typedef struct {
   peer_t * peers[MAX_CONNECTIONS]; // array of peer_t pointers
   unsigned int id; //this bt_clients id
   int sockets[MAX_CONNECTIONS]; //Array of possible sockets
-  struct pollfd poll_sockets[MAX_CONNECTIONS]; //Arry of pollfd for polling for input
-  
+
+  //Arry of pollfd for polling for input:
+  struct pollfd poll_sockets[MAX_CONNECTIONS];   
   /*set once torrent is parse*/
   bt_info_t * bt_info; //the parsed info for this torrent
   int port;
@@ -190,7 +201,7 @@ int contact_tracker(bt_args_t * bt_args);
 void get_peer_handshake(peer_t * p, char * sha1, char * h_message);
 
 // accept new peer
-int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message);
+int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message, int * newfd, log_info * log, peer_t* peer);
 
 int make_bitfield_msg();
 
