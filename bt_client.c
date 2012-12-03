@@ -157,6 +157,7 @@ int main (int argc, char * argv[]){
   //main client loop
   printf("Starting Main Loop, maxfd:%d\n",maxfd);
   while(1){
+    int peerpos=-1,j;
     memcpy(&tempset, &readset, sizeof(tempset));
     tv.tv_sec = 30;
     tv.tv_usec = 0;
@@ -174,10 +175,10 @@ int main (int argc, char * argv[]){
         if (FD_ISSET(i, &tempset)) {
           if(i == incoming_sockfd){
             int new_client_sockfd;
-            int peerpos=-1,j;
             //find first available peer slot
+            peerpos=-1;
             for(j=0;j<MAX_CONNECTIONS;j++){
-              if(bt_args.peers[j] != NULL){
+              if(bt_args.peers[j] == NULL){
                 peerpos=j;
                 break;
               }
@@ -205,6 +206,20 @@ int main (int argc, char * argv[]){
           }
           else { 
             // otherwise someone else is sending us something
+            
+            // find the peer in the list
+            peerpos=-1;
+            for(j=0;j<MAX_CONNECTIONS;j++){
+              if(bt_args.sockets[j] == i && bt_args.peers[j] != NULL){
+                peerpos=j;
+                break;
+              }
+            }
+            if(peerpos==-1){
+              fprintf(stderr,"Couldn't find connected peer in peers\n");
+              exit(1);
+            }
+
             int message_len;
             read(i,&message_len,sizeof(int));
             unsigned char bt_type;
