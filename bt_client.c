@@ -22,18 +22,6 @@
 
 #include <openssl/sha.h> //hashing pieces
 
-int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield){
-  // TODO send bitfield
-  bt_msg_t bitfield_msg;
-  bitfield_msg.length = 1+bfield.size;
-  bitfield_msg.bt_type = BT_BITFILED;
-  bitfield_msg.payload.bitfiled = bfield;
-  int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
-  printf("Bitfield sent!\n");
-  return sent;
-}
-
-
 
 int main (int argc, char * argv[]){
   bt_args_t bt_args;
@@ -50,8 +38,6 @@ int main (int argc, char * argv[]){
   char msginfo[50];
 
   log_info log;
-  float ms;
-  int len;
   // we will always read from read_set and write to write_set;
   fd_set readset, tempset;
   gettimeofday(&(log.start_tv),NULL);
@@ -97,65 +83,36 @@ int main (int argc, char * argv[]){
   peer_t * peer;
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL){
-      npeers++;
       //setup peer btfields
       peer = bt_args.peers[i];
       peer->btfield = malloc(bfield.size);
       bzero(peer->btfield,bfield.size);
-      gettimeofday(&(log.cur_tv),NULL);
-      ms = (log.cur_tv.tv_sec - log.start_tv.tv_sec)*1000;
-      ms += (log.cur_tv.tv_usec - log.start_tv.tv_usec)/1000;
-      len = snprintf(log.logmsg,100,"%.2f HANDSHAKE INIT peer:%s port:%d id:\n",
-          ms,inet_ntoa(peer->sockaddr.sin_addr),peer->port);
-      int logwr = fwrite(log.logmsg,len,1,log.log_file);
+      log.len = snprintf(log.logmsg,100,"HANDSHAKE INIT peer:%s port:%d id:%20s\n",
+          inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
+      int logwr = log_write(&log);
 
       int * sfd = &(bt_args.sockets[i]);
 
 
       if(connect_to_peer(peer, sha1, h_message, rh_message, sfd)){
-        gettimeofday(&(log.cur_tv),NULL);
-        ms = (log.cur_tv.tv_sec - log.start_tv.tv_sec)*1000;
-        ms += (log.cur_tv.tv_usec - log.start_tv.tv_usec)/1000;
-        len = snprintf(log.logmsg,100,"%.2f HANDSHAKE FAILED peer:%s port:%d id:\n",
-            ms,inet_ntoa(peer->sockaddr.sin_addr),peer->port);
-        logwr = fwrite(log.logmsg,len,1,log.log_file);
-
-
-        //log contents of handshake, eventually unnecessary
-        int j;
-        for(j=0;j<68;++j){
-          len = snprintf(log.logmsg,100,"%d ",h_message[j]);
-          logwr = fwrite(log.logmsg,len,1,log.log_file);
-        }
-        fwrite("\n",1,1,log.log_file);
-        for(j=0;j<68;++j){
-          len = snprintf(log.logmsg,100,"%d ",rh_message[j]);
-          logwr = fwrite(log.logmsg,len,1,log.log_file);
-        }
-        fwrite("\n",1,1,log.log_file);
-
-
+        log.len = snprintf(log.logmsg,100,"HANDSHAKE FAILED peer:%s port:%d id:%20s\n",
+            inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
+        logwr = log_write(&log);
 
         free(bt_args.peers[i]);
       }else{
-        gettimeofday(&(log.cur_tv),NULL);
-        ms = (log.cur_tv.tv_sec - log.start_tv.tv_sec)*1000;
-        ms += (log.cur_tv.tv_usec - log.start_tv.tv_usec)/1000;
-        len = snprintf(log.logmsg,100,"%.2f HANDSHAKE SUCCESS peer:%s port:%d id:\n",
-            ms,inet_ntoa(peer->sockaddr.sin_addr),peer->port);
-        logwr = fwrite(log.logmsg,len,1,log.log_file);
+        log.len = snprintf(log.logmsg,100,"HANDSHAKE SUCCESS peer:%s port:%d id:%20s\n",
+            inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
+        logwr = log_write(&log);
         FD_SET(bt_args.sockets[i], &readset); // add to master set
         if (bt_args.sockets[i] > maxfd) { // keep track of the max
           maxfd = bt_args.sockets[i];
         }
         send_bitfield(bt_args.sockets[i],bfield);
       }
-    }else{//no more peers left
-      break;
     }
   }
 
-  fflush(log.log_file);
 
   //main client loop
   printf("Starting Main Loop, maxfd:%d\n",maxfd);
@@ -204,10 +161,13 @@ int main (int argc, char * argv[]){
                 int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
                 printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",bitfield_msg.length,sent);
               }
-              fflush(log.log_file);
             }
           }
           else { 
+            int message_len;
+            read(i,&message_len,sizeof(int));
+            
+            if(!message_len) continue;
             // otherwise someone else is sending us something
 
             // find the peer in the list
@@ -223,39 +183,33 @@ int main (int argc, char * argv[]){
               exit(1);
             }
 
-            int message_len;
-            read(i,&message_len,sizeof(int));
             unsigned char bt_type;
             read(i,&bt_type,sizeof(bt_type));
             // switch on type of bt_message and handle accordingly
             // TODO change the rest of these to #define vals
-            gettimeofday(&(log.cur_tv),NULL);
-            ms = (log.cur_tv.tv_sec - log.start_tv.tv_sec)*1000;
-            ms += (log.cur_tv.tv_usec - log.start_tv.tv_usec)/1000;
-                int have;
-                unsigned char bhave;
-                int charpos;
-
+            int have;
+            unsigned char bhave;
+            int charpos;
             switch(bt_type){
               case BT_CHOKE: //choke
                 bt_args.peers[peerpos]->imchoked=1;
                 strcpy(msg,"MESSAGE CHOKE FROM");
-                strcpy(msg,"");
+                strcpy(msginfo,"");
                 break;
               case BT_UNCHOKE: //unchoke
                 bt_args.peers[peerpos]->imchoked=0;
                 strcpy(msg,"MESSAGE UNCHOKE FROM");
-                strcpy(msg,"");
+                strcpy(msginfo,"");
                 break;
               case BT_INTERSTED: //interested
                 bt_args.peers[peerpos]->interested=1;
                 strcpy(msg,"MESSAGE INTERESTED FROM");
-                strcpy(msg,"");
+                strcpy(msginfo,"");
                 break;
               case BT_NOT_INTERESTED: //not interested
                 bt_args.peers[peerpos]->interested=0;
                 strcpy(msg,"MESSAGE NOT INTERESTED FROM");
-                strcpy(msg,"");
+                strcpy(msginfo,"");
                 break;
               case BT_HAVE: //have
                 read(i,&have,message_len-1);
@@ -297,10 +251,9 @@ int main (int argc, char * argv[]){
                 //snprintf(msginfo,50,"bitfield:%s",buf);
                 break;
             }
-            len = snprintf(&(log.logmsg[len]),100,"%.2f %s id:%s %s\n",
-                ms,msg,bt_args.peers[peerpos]->id,msginfo);
-            fwrite(log.logmsg,len,1,log.log_file);
-            fflush(log.log_file);
+            //log.len = snprintf(&(log.logmsg[log.len]),100,"%s id:%s %s\n",
+            //    msg,bt_args.peers[peerpos]->id,msginfo);
+            //log_write(&log);
           }
         }
       }

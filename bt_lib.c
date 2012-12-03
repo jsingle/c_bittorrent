@@ -15,6 +15,34 @@
 #include "bt_lib.h"
 #include "bt_setup.h"
 
+int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield){
+  // TODO send bitfield
+  bt_msg_t bitfield_msg;
+  bitfield_msg.length = 1+bfield.size;
+  bitfield_msg.bt_type = BT_BITFILED;
+  bitfield_msg.payload.bitfiled = bfield;
+  int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
+  printf("Bitfield sent!\n");
+  return sent;
+}
+
+
+
+int log_write(log_info * log){
+  float ms;
+  char time[10];
+  int time_len;
+  gettimeofday(&(log->cur_tv),NULL);
+  ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
+  ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
+  time_len = snprintf(time,10,"%.2f ",ms);
+  int fw = fwrite(time,time_len,1,log->log_file);
+  fw = fwrite(log->logmsg,log->len,1,log->log_file);
+  fflush(log->log_file);
+  return fw;
+}
+
+
 
 
 void calc_id(char * ip, unsigned short port, char *id){
@@ -41,8 +69,6 @@ int add_peer(peer_t *peer, bt_args_t *bt_args, char * hostname, unsigned short p
 
 
 int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message, int * newfd, log_info * log, peer_t * peer){
-  float ms;
-  int len;
   //try to accept incoming connection from new peer 
   // Wait for a connection on the socket
   int client_fd;              // socket file descriptor
@@ -58,11 +84,8 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
   if(client_fd == -1){
     perror("Accept New Peer Failed");
-    gettimeofday(&(log->cur_tv),NULL);
-    ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
-    ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
-    len = snprintf(log->logmsg,100,"%f HANDSHAKE FAILED accept failed\n",ms);
-    fwrite(log->logmsg,len,1,log->log_file);
+    log->len = snprintf(log->logmsg,100,"HANDSHAKE FAILED accept failed\n");
+    log_write(log);
 
     return 1;
   }
@@ -92,28 +115,10 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
   if(rh_ret){   //read failed
     printf("READ HANDSHAKE failed\n");
-    gettimeofday(&(log->cur_tv),NULL);
-    ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
-    ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
-    len = snprintf(log->logmsg,100,"%f HANDSHAKE FAILED peer:%s port:%d id:i%20s\n",
-        ms,ip,port,id);
-    fwrite(log->logmsg,len,1,log->log_file);
+    log->len = snprintf(log->logmsg,100,"HANDSHAKE FAILED peer:%s port:%d id:i%20s\n",
+        ip,port,id);
+    log_write(log);
 
-
-    //log contents of handshake, unnecessary
-    int j;
-    for(j=0;j<68;++j){
-      len = snprintf(log->logmsg,100,"%d ",h_message[j]);
-      fwrite(log->logmsg,len,1,log->log_file);
-    }
-    fwrite("\n",1,1,log->log_file);
-    for(j=0;j<68;++j){
-      len = snprintf(log->logmsg,100,"%d ",rh_message[j]);
-      fwrite(log->logmsg,len,1,log->log_file);
-    }
-    fwrite("\n",1,1,log->log_file);
-    
-    
     return 1;
   }
 
@@ -122,12 +127,9 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   if(sent != H_MSG_LEN){
     //should be 68...
     fprintf(stderr,"Handshake wasn't sent correctly, returned %d\n",sent);
-    gettimeofday(&(log->cur_tv),NULL);
-    ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
-    ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
-    len = snprintf(log->logmsg,100,"%f HANDSHAKE SEND FAILED peer:%s port:%d id:%20s\n",
-        ms,ip,port,id);
-    fwrite(log->logmsg,len,1,log->log_file);
+    log->len = snprintf(log->logmsg,100,"HANDSHAKE SEND FAILED peer:%s port:%d id:%20s\n",
+        ip,port,id);
+    log_write(log);
     return 1;
   }   
 
@@ -142,12 +144,9 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
   init_peer(peer, id, ip, port);
   *newfd = client_fd;
-  gettimeofday(&(log->cur_tv),NULL);
-  ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
-  ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
-  len = snprintf(log->logmsg,100,"%f HANDSHAKE SUCCESS peer:%s port:%d id:%20s\n",
-      ms,inet_ntoa(peer->sockaddr.sin_addr),peer->port,id);
-  fwrite(log->logmsg,len,1,log->log_file);
+  log->len = snprintf(log->logmsg,100,"HANDSHAKE SUCCESS peer:%s port:%d id:%20s\n",
+      inet_ntoa(peer->sockaddr.sin_addr),peer->port,id);
+  log_write(log);
   return 0;
 }
 

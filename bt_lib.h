@@ -52,6 +52,7 @@ typedef struct {
   FILE * log_file;
   struct timeval start_tv, cur_tv;
   char logmsg[100];
+  int len;
 } log_info;
 
 
@@ -143,7 +144,9 @@ typedef struct bt_msg{
 } bt_msg_t;
 
 
+int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield);
 
+int log_write(log_info * log);
 
 
 int parse_bt_info(bt_info_t * bt_info, be_node * node);
