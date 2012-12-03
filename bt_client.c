@@ -151,6 +151,7 @@ int main (int argc, char * argv[]){
                 free(bt_args.peers[peerpos]);
                 bt_args.peers[peerpos] = NULL;
               }else{
+                bt_args.peers[peerpos]->btfield = malloc(bfield.size);
                 // accept new peer succeeded
                 FD_SET(new_client_sockfd, &readset); // add to master set
                 if (new_client_sockfd > maxfd) { // keep track of the max
@@ -229,7 +230,9 @@ int main (int argc, char * argv[]){
               case BT_BITFILED: //bitfield
                 printf("bitfield received\n");
                 do{
+                  printf("right before read\n");
                   read_size = read(i,&buf,BUF_LEN);
+                  printf("right after read\n");
                   printf("buf contains: %s\n",buf);
                 }while(read_size == BUF_LEN);
 
@@ -256,9 +259,9 @@ int main (int argc, char * argv[]){
                 //snprintf(msginfo,50,"bitfield:%s",buf);
                 break;
             }
-            //log.len = snprintf(&(log.logmsg[log.len]),100,"%s id:%s %s\n",
-            //    msg,bt_args.peers[peerpos]->id,msginfo);
-            //log_write(&log);
+            log.len = snprintf(&(log.logmsg[log.len]),100,"%s id:%s %s\n",
+                msg,bt_args.peers[peerpos]->id,msginfo);
+            log_write(&log);
           }
         }
       }
