@@ -251,7 +251,9 @@ int parse_bt_info(bt_info_t * out, be_node * node)
 	  // here we malloc the pieces_hash buffer based
 	  // on the number of pieces we have
 	  out -> piece_hashes = malloc(out->num_pieces*(be_str_len(node)));
-	  strcpy(*(out->piece_hashes),currnode->val.s);
+	  // FIXME 
+          out->piece_hashes = malloc(sizeof(currnode->val.s));
+          strcpy(*(out->piece_hashes),currnode->val.s);
         }
       }
   }
