@@ -143,8 +143,10 @@ typedef struct bt_msg{
 
 } bt_msg_t;
 
-
+int send_request(int fd, bt_request_t btrequest);
+int process_bitfield(bt_bitfield_t bfield, peer_t  * peer, int fd);
 int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield);
+int send_have(int fd,int have);
 
 int log_write(log_info * log);
 

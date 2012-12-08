@@ -77,7 +77,7 @@ int main (int argc, char * argv[]){
   bfield.size = tracker_info.num_pieces/8 +1;
   bfield.bitfield = malloc(bfield.size);
   bzero(&bfield.bitfield,bfield.size);
-  printf("Bitfield created with length: %d\n",bfield.size);
+  printf("Bitfield created with length: %d\n",(int)bfield.size);
 
   peer_t * peer;
   for(i=0;i<MAX_CONNECTIONS;i++){  
@@ -112,10 +112,15 @@ int main (int argc, char * argv[]){
     }
   }
 
+  //indicates whether "unable to connect, max connections" needs
+  //to be printed
+  int maxconnect=0;
 
   //main client loop
   printf("Starting Main Loop, maxfd:%d\n",maxfd);
   while(1){
+    //TODO: need to handle clients closing connections
+    //also clients need to handle server closing connections
     int peerpos=-1,j;
     memcpy(&tempset, &readset, sizeof(tempset));
     tv.tv_sec = 30;
@@ -133,17 +138,23 @@ int main (int argc, char * argv[]){
         // if there is a new connection
         if (FD_ISSET(i, &tempset)) {
           if(i == incoming_sockfd){
+            //there is new client trying to connect
+            
+
             int new_client_sockfd;
             //find first available peer slot
             peerpos=-1;
             for(j=0;j<MAX_CONNECTIONS;j++){
               if(bt_args.peers[j] == NULL){
                 peerpos=j;
+                maxconnect = 0;
                 break;
               }
             }
-            if(peerpos==-1){
+            if(peerpos==-1){//cant find an empty slot, so we're at max_connect
+              if(maxconnect) continue;
               printf("Unable to accept new connection - already at max\n");
+              maxconnect = 1;
             }else{
               bt_args.peers[peerpos] = malloc(sizeof(peer_t));
               if(accept_new_peer(incoming_sockfd, sha1,h_message, rh_message,
@@ -164,11 +175,13 @@ int main (int argc, char * argv[]){
             }
           }
           else { 
+            // otherwise someone else is sending us something
+            
+            
             int message_len;
             int read_msglen = read(i,&message_len,sizeof(int));
-           printf("received %d from file descripter : %d\n",read_msglen,i); 
-            if(!message_len) continue;
-            // otherwise someone else is sending us something
+            if(!message_len || !read_msglen) continue;
+            printf("received %d from file descripter : %d\n",read_msglen,i); 
 
             // find the peer in the list
             peerpos=-1;
@@ -217,30 +230,26 @@ int main (int argc, char * argv[]){
                 bt_args.peers[peerpos]->interested=0;
                 strcpy(msg,"MESSAGE NOT INTERESTED FROM");
                 strcpy(msginfo,"");
+                printf("bitfield received\n");
                 break;
               case BT_HAVE: //have
                 read(i,&have,message_len-1);
                 bhave = 1;
                 charpos = have%8;
                 charpos = 7-charpos;
-                bhave<<charpos;
+                bhave<<=charpos;
                 bt_args.peers[peerpos]->btfield[have/8] |= bhave;
                 strcpy(msg,"MESSAGE HAVE FROM");
                 snprintf(msginfo,50,"have:%d",have);
                 break;
               case BT_BITFILED: //bitfield
+                printf("want bfield size of: %d for bfield\n",(int)bfield.size);
+                read_size = read(i,peer -> btfield,bfield.size);
                 printf("bitfield received\n");
-                //do{
-                  read_size = read(i,peer -> btfield,bfield.size);
-                  printf("buf contains: %s\n",buf);
-                //}while(read_size == BUF_LEN);
 
-                send_bitfield(i,bfield);
-
-                // reply with bitfield
                 strcpy(msg,"MESSAGE BITFIELD FROM");
-                //TODO: log
-                //snprintf(msginfo,50,"bitfield:%s",buf);
+                snprintf(msginfo,bfield.size + 9,"bitfield:%s",peer->btfield);
+                process_bitfield(bfield,peer,i);
                 break;
               case BT_REQUEST: //request
                 strcpy(msg,"MESSAGE REQUEST FROM");
@@ -258,7 +267,7 @@ int main (int argc, char * argv[]){
                 //snprintf(msginfo,50,"bitfield:%s",buf);
                 break;
             }
-            log.len = snprintf(&(log.logmsg[log.len]),100,"%s id:%s %s\n",
+            log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
                 msg,bt_args.peers[peerpos]->id,msginfo);
             log_write(&log);
           }

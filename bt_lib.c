@@ -15,10 +15,48 @@
 #include "bt_lib.h"
 #include "bt_setup.h"
 
+int send_request(int fd, bt_request_t btrequest){
+  return 0;
+}
+
+
+
+//process bitfields of peers and calls appropriate send_request
+int process_bitfield(bt_bitfield_t bfield, peer_t *  peer, int fd){
+  int i,j;
+  bt_request_t btrequest;
+  int sent;
+  for(i=0;i<bfield.size;i++){
+    char a = 1<<7;
+    for(j=0;j<8;j++){
+      if(!(bfield.bitfield[i] & a) && (peer->btfield[i] & a)){
+        //TODO: set btrequest
+        sent = send_request(fd,btrequest);
+        return sent;
+      }
+      a = a>>1;
+    }
+  }
+  return 0;
+}
+
+
+int send_have(int fd, int have){
+  bt_msg_t bitfield_msg;
+  bitfield_msg.length = sizeof(int)*2;
+  bitfield_msg.bt_type = BT_HAVE;
+  bitfield_msg.payload.have = have;
+  int sent = send(fd,&bitfield_msg,bitfield_msg.length,0);
+  printf("Have %d sent!  Msg len: %3d, Sent Size %3d\n",
+      bitfield_msg.payload.have,bitfield_msg.length,sent);
+  return sent;
+}
+
+
 int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield){
   // TODO send bitfield
   bt_msg_t bitfield_msg;
-  bitfield_msg.length = sizeof(int) +bfield.size;
+  bitfield_msg.length = sizeof(int) +1 +bfield.size;
   bitfield_msg.bt_type = BT_BITFILED;
   bitfield_msg.payload.bitfiled = bfield;
   int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
