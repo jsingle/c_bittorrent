@@ -73,12 +73,25 @@ int main (int argc, char * argv[]){
   sha1 = tracker_info.name;
 
   // TODO Create bitfield
+  piece_tracker piece_track;
   bt_bitfield_t bfield;
+  piece_track.bfield = &bfield;
   bfield.size = tracker_info.num_pieces/8 +1;
   bfield.bitfield = malloc(bfield.size);
   bzero(&bfield.bitfield,bfield.size);
   printf("Bitfield created with length: %d\n",(int)bfield.size);
+  if(tracker_info.piece_length>32768){ //2^15
+    piece_track.recv_size = 32768;
+  }else{
+    piece_track.recv_size = tracker_info.piece_length;
+  }
+  piece_track.recvd_pos = (unsigned long int *)
+    malloc(sizeof(unsigned long int)*bfield.size);
 
+
+
+
+  //TODO: connections should initially be choked and uninterested
   peer_t * peer;
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL){
@@ -107,7 +120,7 @@ int main (int argc, char * argv[]){
         if (bt_args.sockets[i] > maxfd) { // keep track of the max
           maxfd = bt_args.sockets[i];
         }
-        send_bitfield(bt_args.sockets[i],bfield);
+        send_bitfield(bt_args.sockets[i],bfield,peer,&log);
       }
     }
   }
@@ -170,7 +183,8 @@ int main (int argc, char * argv[]){
                 }
                 // TODO send bitfiel
                 bt_args.sockets[peerpos] = new_client_sockfd;
-                send_bitfield(new_client_sockfd,bfield);
+                send_bitfield(new_client_sockfd,bfield,bt_args.peers[peerpos],
+                    &log);
               }
             }
           }
@@ -210,6 +224,7 @@ int main (int argc, char * argv[]){
             int have;
             unsigned char bhave;
             int charpos;
+            int proc_b;
             switch(bt_type){
               case BT_CHOKE: //choke
                 bt_args.peers[peerpos]->imchoked=1;
@@ -223,6 +238,8 @@ int main (int argc, char * argv[]){
                 break;
               case BT_INTERSTED: //interested
                 bt_args.peers[peerpos]->interested=1;
+                //TODO:recv interested struct
+                //call handle interested
                 strcpy(msg,"MESSAGE INTERESTED FROM");
                 strcpy(msginfo,"");
                 break;
@@ -249,7 +266,6 @@ int main (int argc, char * argv[]){
 
                 strcpy(msg,"MESSAGE BITFIELD FROM");
                 snprintf(msginfo,bfield.size + 9,"bitfield:%s",peer->btfield);
-                process_bitfield(bfield,peer,i);
                 break;
               case BT_REQUEST: //request
                 strcpy(msg,"MESSAGE REQUEST FROM");
@@ -270,6 +286,12 @@ int main (int argc, char * argv[]){
             log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
                 msg,bt_args.peers[peerpos]->id,msginfo);
             log_write(&log);
+            if(bt_type == BT_BITFILED){//handle the result of process bitfield
+              fprintf(stderr,"about to proc btf\n");
+              if(is_interested(&piece_track,peer,i,&log))
+              proc_b = process_bitfield(&piece_track,peer,i,&log);
+
+            }
           }
         }
       }

@@ -48,6 +48,9 @@
 #define H_MSG_LEN 68
 
 
+  
+
+
 typedef struct {
   FILE * log_file;
   struct timeval start_tv, cur_tv;
@@ -112,6 +115,18 @@ typedef struct {
   size_t size;//size of the bitfiled
 } bt_bitfield_t;
 
+
+
+
+typedef struct{
+  bt_bitfield_t * bfield;
+  unsigned long int recv_size, piece_size, * recvd_pos;
+} piece_tracker;
+
+
+
+
+
 typedef struct{
   int index; //which piece index
   int begin; //offset within piece
@@ -143,9 +158,14 @@ typedef struct bt_msg{
 
 } bt_msg_t;
 
-int send_request(int fd, bt_request_t btrequest);
-int process_bitfield(bt_bitfield_t bfield, peer_t  * peer, int fd);
-int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield);
+int send_interested(int fd,int interested);
+int is_interested(piece_tracker * piecetrack,
+    peer_t * peer,int fd, log_info * log);
+int send_request(int fd, bt_request_t  *btrequest);
+int process_bitfield(piece_tracker * piece_track, peer_t  * peer, int fd,
+    log_info * log);
+int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield,
+    peer_t * peer, log_info * log);
 int send_have(int fd,int have);
 
 int log_write(log_info * log);
