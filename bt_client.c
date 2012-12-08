@@ -81,8 +81,9 @@ int main (int argc, char * argv[]){
   //setup bitfield, piece tracking
   piece_tracker piece_track;
   piece_track.size = tracker_info.num_pieces/8 +1;
-  piece_track.msg = (char *)malloc(piece_track.size + sizeof(int)+ 1);
-  piece_track.bitfield = piece_track.msg+sizeof(int)+1;
+  piece_track.msg = (char *)malloc(piece_track.size + sizeof(int)+ 1 + sizeof(size_t));
+  //bt_msg length + bt_msg bt_type + bitfield size
+  piece_track.bitfield = piece_track.msg+sizeof(int)+1 +sizeof(size_t);
   bzero(piece_track.msg,piece_track.size + sizeof(size_t) + 1);
   printf("Bitfield created with length: %d\n",(int)piece_track.size);
   if(tracker_info.piece_length>32768){ //2^15
@@ -244,6 +245,7 @@ int main (int argc, char * argv[]){
             unsigned char bhave;
             int charpos;
             int proc_b;
+            size_t bfsize;
             switch(bt_type){
               case BT_CHOKE: //choke
                 bt_args.peers[peerpos]->imchoked=1;
@@ -294,6 +296,15 @@ int main (int argc, char * argv[]){
                 break;
               case BT_BITFILED: //bitfield
                 //printf("want bfield size of: %d for bfield\n",(int)bfield.size);
+                
+                //read bitfield size
+                read_size = read(i,&bfsize,sizeof(size_t));
+                //TODO: unexpected size
+                if(bfsize != piece_track.size)
+                  printf("warning: unexpected bitfield size!!! %d %d\n",
+                      bfsize,piece_track.size);
+                
+                //read bitfield
                 read_size = read(i,peer -> btfield,piece_track.size);
                 printf("bitfield received\n");
 
@@ -316,13 +327,14 @@ int main (int argc, char * argv[]){
                 bt_request_t piece_req;
                 //TODO:handle request struct
                 read_size = read(i,&piece_req,sizeof(bt_request_t));
-                printf("bitfield received\n");
-                
+                printf("request received\n");
+                printf("request index: %d\n",piece_req.index); 
                 bhave = 1;
                 charpos = (piece_req.index)%8;
                 // rev direction
                 charpos = 7-charpos;
                 bhave<<=charpos;
+
 
                 // check if we have it
                 if ( (piece_track.bitfield[piece_req.index/8]) & bhave ){
@@ -337,6 +349,7 @@ int main (int argc, char * argv[]){
                   req_piece_msg -> length = sizeof(unsigned char) + 
                     /* bt_piece_t */ + 2*sizeof(int) + 
                     /*data */ SUBPIECE_LEN;
+                  
                   req_piece_msg -> bt_type = BT_PIECE; 
 
                   // piece

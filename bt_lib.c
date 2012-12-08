@@ -115,7 +115,7 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
         //TODO: mabye choose a random section to request, not go serially?
         
         btrequest.begin = piecetrack->recvd_pos[index];
-
+        printf("request index: %d\n",index);
         btrequest.index = index;
         if(piecetrack->recv_size < (piecetrack->piece_size
               - piecetrack->recvd_pos[index])){
@@ -175,7 +175,8 @@ int send_bitfield(
 {
   bt_msg_t * bitfield_msg = (bt_msg_t *)(piece_track->msg);
   bitfield_msg->bt_type = BT_BITFILED;
-  bitfield_msg->length =  1 + piece_track->size;
+  bitfield_msg->length =  1 + sizeof(size_t) + piece_track->size;
+  bitfield_msg->payload.bitfiled.size = piece_track->size;
   int sent = send(new_client_sockfd,bitfield_msg,
       sizeof(int) + bitfield_msg->length,0);
   printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",
