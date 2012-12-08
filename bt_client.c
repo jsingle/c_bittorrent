@@ -59,7 +59,6 @@ int main (int argc, char * argv[]){
 
 
 
-
   //read and parse the torrent file
   node = load_be_node(bt_args.torrent_file);
   if(bt_args.verbose) be_dump(node);
@@ -67,6 +66,10 @@ int main (int argc, char * argv[]){
   node = load_be_node(bt_args.torrent_file);
   parse_bt_info(&tracker_info,node); 
 
+  FILE * savefile;
+
+  savefile = fopen(tracker_info.name,"r+");
+  if (savefile == NULL) savefile = fopen(tracker_info.name,"w+");
 
   //TODO fix sha1
   char * sha1;
@@ -258,6 +261,16 @@ int main (int argc, char * argv[]){
                 break; 
               case BT_PIECE: //piece
                 strcpy(msg,"MESSAGE PIECE FROM");
+               
+                // parse out piece number
+                
+
+                // verify if you have it
+                
+                // grab that shit from the file
+                
+                // trigger piece send
+                
                 //TODO: log
                 //snprintf(msginfo,50,"bitfield:%s",buf);
                 break;
