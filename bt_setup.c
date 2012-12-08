@@ -9,6 +9,7 @@
 #include "bencode.h"
 #include <arpa/inet.h>
 
+#include <openssl/sha.h>
 
 
 
@@ -52,7 +53,7 @@ FILE * process_savefile(bt_args_t * bt_args,
       //make file bigger
       fseek(savefile,tracker_info->length,SEEK_SET);
       file_l = ftell(savefile);
-    printf("file size set: %d\n",file_l);
+      printf("file size set: %d\n",file_l);
     }
     //TODO: deal with savefiles that are too long
     char * piece;
@@ -64,7 +65,7 @@ FILE * process_savefile(bt_args_t * bt_args,
     for(i=0;i<tracker_info->num_pieces-1;i++){
       sread = fread(piece,1,tracker_info->piece_length,savefile);
       if(sread != tracker_info->piece_length){
-        printf("problem reading savefile: read:%d, wanted:%d fileloc:%d\n",
+        printf("problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
             sread, tracker_info->piece_length,ftell(savefile));
       }
       //sha1 of piece into shapiece
@@ -83,23 +84,23 @@ FILE * process_savefile(bt_args_t * bt_args,
     //verify last piece
     int last_pl = tracker_info->length
       - tracker_info->piece_length*(tracker_info->num_pieces-1);
-      sread = fread(piece,1,last_pl,savefile);
-      if(sread != last_pl){
-        printf("problem reading savefile: read:%d, wanted:%d fileloc:%d\n",
-            sread, last_pl,ftell(savefile));
-      }
-      //sha1 of piece into shapiece
-      SHA1((unsigned char *)piece,last_pl,
-          (unsigned char *)shapiece);
-      if(!memcmp(tracker_info->piece_hashes[i],shapiece,20)){
-        //printf("Piece %d verified\n",i);
-        char bitand = 1;
-        bitand = bitand<<7;
-        bitand = bitand>>(i%8);
-        piece_track->bitfield[i/8] |= bitand;
-      }else{
-        //printf("Piece %d not verified\n",i);
-      }
+    sread = fread(piece,1,last_pl,savefile);
+    if(sread != last_pl){
+      printf("problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
+          sread, last_pl,ftell(savefile));
+    }
+    //sha1 of piece into shapiece
+    SHA1((unsigned char *)piece,last_pl,
+        (unsigned char *)shapiece);
+    if(!memcmp(tracker_info->piece_hashes[i],shapiece,20)){
+      //printf("Piece %d verified\n",i);
+      char bitand = 1;
+      bitand = bitand<<7;
+      bitand = bitand>>(i%8);
+      piece_track->bitfield[i/8] |= bitand;
+    }else{
+      //printf("Piece %d not verified\n",i);
+    }
     //setup bitfield
   }
   //TODO: print bitfield, progress
