@@ -300,7 +300,54 @@ int main (int argc, char * argv[]){
                 log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
                     msg,bt_args.peers[peerpos]->id,msginfo);
                 log_write(&log);
+
+                bt_request_t piece_req;
                 //TODO:handle request struct
+                read_size = read(i,&piece_req,sizeof(bt_request_t));
+                printf("bitfield received\n");
+                
+                bhave = 1;
+                charpos = (piece_req.index)%8;
+                // rev direction
+                charpos = 7-charpos;
+                bhave<<=charpos;
+
+                // check if we have it
+                if ( (piece_track.bitfield[piece_req.index/8]) & bhave ){
+                  //if we have it
+                  
+                  // message
+                  bt_msg_t * req_piece_msg = (bt_msg_t *) malloc(/*bt msg */ sizeof(int) + sizeof(unsigned char) + /* bt_piece_t */ + 2*sizeof(int) + /*data */ SUBPIECE_LEN );
+                  req_piece_msg -> length = sizeof(unsigned char) + /* bt_piece_t */ + 2*sizeof(int) + /*data */ SUBPIECE_LEN;
+                  req_piece_msg -> bt_type = BT_PIECE; 
+
+                  // piece
+                  bt_piece_t * requested = &(req_piece_msg -> payload.piece);
+                  requested -> index = piece_req.index;
+                  requested -> begin = piece_req.begin;
+
+                  // load the appro piece
+                  //read_size = load_piece_from_file(save_file,&requested);
+                  fseek(savefile,(piece_req.index)*tracker_info.piece_length+piece_req.begin, SEEK_SET);
+                  // read into bt_piece_t
+                  fread(&(requested -> piece),1,SUBPIECE_LEN,savefile);
+                  // send the message to the peer
+                  int sent = send(bt_args.sockets[i],req_piece_msg,
+                      sizeof(int) + req_piece_msg->length,0);
+
+                  printf("Piece sent!  Msg len: %3d, Sent Size %3d\n",
+      req_piece_msg->length,sent);
+                }{
+                  // if we don't have it
+                  strcpy(msg,"DON'T HAVE PIECE");
+                  strcpy(msginfo,"");
+                  log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                      msg,bt_args.peers[peerpos]->id,msginfo);
+                  log_write(&log);
+
+
+                }
+                
                 //send section
                 break; 
               case BT_PIECE: //piece
