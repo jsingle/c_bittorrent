@@ -254,10 +254,8 @@ int parse_bt_info(bt_info_t * out, be_node * node)
           int k;
           for(k=0;k<out->num_pieces;k++){//malloc a sha1 per piece
             out->piece_hashes[k] = (char *)malloc(20);
+            memcpy(out->piece_hashes[k],infonode->val.s + 20*k,20);
           }
-	  // FIXME 
-          //out->piece_hashes = malloc(sizeof(currnode->val.s));
-          //strcpy(*(out->piece_hashes),currnode->val.s);
         }
       }
   }
