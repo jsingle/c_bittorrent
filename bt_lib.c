@@ -22,7 +22,7 @@ int send_request(int fd, bt_request_t * btrequest){
   memcpy(&(bitfield_msg.payload.request),btrequest, sizeof(btrequest));
   
   int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
-  if(sent == bitfield_msg.length){
+  if(sent == bitfield_msg.length + sizeof(int)){
     return 0;
   }
   else{
