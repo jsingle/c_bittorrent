@@ -48,7 +48,6 @@ int main (int argc, char * argv[]){
   log.log_file = fopen(bt_args.log_file,"w");
 
 
-
   // Initialize a port to listen for incoming connections
   int incoming_sockfd;
   incoming_sockfd = init_incoming_socket(bt_args.port); 
@@ -75,20 +74,36 @@ int main (int argc, char * argv[]){
   char * sha1;
   sha1 = tracker_info.name;
 
-  // TODO Create bitfield
-  bt_bitfield_t bfield;
-  bfield.size = tracker_info.num_pieces/8 +1;
-  bfield.bitfield = malloc(bfield.size);
-  bzero(&bfield.bitfield,bfield.size);
-  printf("Bitfield created with length: %d\n",(int)bfield.size);
+  
+  
+  // TODO parse data file, create bitfield for restart
+ 
 
+  piece_tracker piece_track;
+  piece_track.size = tracker_info.num_pieces/8 +1;
+  piece_track.msg = (char *)malloc(piece_track.size + sizeof(int)+ 1);
+  piece_track.bitfield = piece_track.msg+sizeof(int)+1;
+  bzero(piece_track.msg,piece_track.size + sizeof(size_t) + 1);
+  printf("Bitfield created with length: %d\n",(int)piece_track.size);
+  if(tracker_info.piece_length>32768){ //2^15
+    piece_track.recv_size = 32768;
+  }else{
+    piece_track.recv_size = tracker_info.piece_length;
+  }
+  piece_track.recvd_pos = (unsigned long int *)
+    malloc(sizeof(unsigned long int)*piece_track.size);
+
+
+
+
+  //TODO: connections should initially be choked and uninterested
   peer_t * peer;
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL){
       //setup peer btfields
       peer = bt_args.peers[i];
-      peer->btfield = malloc(bfield.size);
-      bzero(peer->btfield,bfield.size);
+      peer->btfield = malloc(piece_track.size);
+      bzero(peer->btfield,piece_track.size);
       log.len = snprintf(log.logmsg,100,"HANDSHAKE INIT peer:%s port:%d id:%20s\n",
           inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
       int logwr = log_write(&log);
@@ -110,7 +125,7 @@ int main (int argc, char * argv[]){
         if (bt_args.sockets[i] > maxfd) { // keep track of the max
           maxfd = bt_args.sockets[i];
         }
-        send_bitfield(bt_args.sockets[i],bfield);
+        send_bitfield(bt_args.sockets[i],&piece_track,peer,&log);
       }
     }
   }
@@ -165,15 +180,16 @@ int main (int argc, char * argv[]){
                 free(bt_args.peers[peerpos]);
                 bt_args.peers[peerpos] = NULL;
               }else{
-                bt_args.peers[peerpos]->btfield = malloc(bfield.size);
+                bt_args.peers[peerpos]->btfield = malloc(piece_track.size);
                 // accept new peer succeeded
                 FD_SET(new_client_sockfd, &readset); // add to master set
                 if (new_client_sockfd > maxfd) { // keep track of the max
                   maxfd = new_client_sockfd;
                 }
-                // TODO send bitfiel
                 bt_args.sockets[peerpos] = new_client_sockfd;
-                send_bitfield(new_client_sockfd,bfield);
+                send_bitfield(new_client_sockfd,&piece_track,
+                    bt_args.peers[peerpos],
+                    &log);
               }
             }
           }
@@ -213,27 +229,39 @@ int main (int argc, char * argv[]){
             int have;
             unsigned char bhave;
             int charpos;
+            int proc_b;
             switch(bt_type){
               case BT_CHOKE: //choke
                 bt_args.peers[peerpos]->imchoked=1;
                 strcpy(msg,"MESSAGE CHOKE FROM");
                 strcpy(msginfo,"");
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo);
+                log_write(&log);
                 break;
               case BT_UNCHOKE: //unchoke
                 bt_args.peers[peerpos]->imchoked=0;
                 strcpy(msg,"MESSAGE UNCHOKE FROM");
                 strcpy(msginfo,"");
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo);
+                log_write(&log);
                 break;
               case BT_INTERSTED: //interested
                 bt_args.peers[peerpos]->interested=1;
                 strcpy(msg,"MESSAGE INTERESTED FROM");
                 strcpy(msginfo,"");
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo);
+                log_write(&log);
                 break;
               case BT_NOT_INTERESTED: //not interested
                 bt_args.peers[peerpos]->interested=0;
                 strcpy(msg,"MESSAGE NOT INTERESTED FROM");
                 strcpy(msginfo,"");
-                printf("bitfield received\n");
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo);
+                log_write(&log);
                 break;
               case BT_HAVE: //have
                 read(i,&have,message_len-1);
@@ -244,24 +272,39 @@ int main (int argc, char * argv[]){
                 bt_args.peers[peerpos]->btfield[have/8] |= bhave;
                 strcpy(msg,"MESSAGE HAVE FROM");
                 snprintf(msginfo,50,"have:%d",have);
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo);
+                log_write(&log);
+                if(is_interested(&piece_track,peer,i,&log))
+                  proc_b = process_bitfield(&piece_track,peer,i,&log);
                 break;
               case BT_BITFILED: //bitfield
-                printf("want bfield size of: %d for bfield\n",(int)bfield.size);
-                read_size = read(i,peer -> btfield,bfield.size);
+                //printf("want bfield size of: %d for bfield\n",(int)bfield.size);
+                read_size = read(i,peer -> btfield,piece_track.size);
                 printf("bitfield received\n");
 
                 strcpy(msg,"MESSAGE BITFIELD FROM");
-                snprintf(msginfo,bfield.size + 9,"bitfield:%s",peer->btfield);
-                process_bitfield(bfield,peer,i);
+                snprintf(msginfo,piece_track.size + 9,"bitfield:%s",
+                    peer->btfield);
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo);
+                log_write(&log);
+                if(is_interested(&piece_track,peer,i,&log))
+                  proc_b = process_bitfield(&piece_track,peer,i,&log);
                 break;
               case BT_REQUEST: //request
                 strcpy(msg,"MESSAGE REQUEST FROM");
-                //TODO: log
-                //snprintf(msginfo,50,"bitfield:%s",buf);
+                strcpy(msginfo,"");
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo);
+                log_write(&log);
+                //TODO:handle request struct
+                //send section
                 break; 
               case BT_PIECE: //piece
+                printf("bt_piece received\n");
+                read_size = read(i,peer->btfield,message_len - sizeof(bt_type));
                 strcpy(msg,"MESSAGE PIECE FROM");
-               
                 // parse out piece number
                 
 
@@ -273,16 +316,25 @@ int main (int argc, char * argv[]){
                 
                 //TODO: log
                 //snprintf(msginfo,50,"bitfield:%s",buf);
+                strcpy(msginfo,"");
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo);
+                log_write(&log);
+                //TODO:store piece
+                //if fills block, sha1 & verify
+                //then have
+                if(is_interested(&piece_track,peer,i,&log))
+                  proc_b = process_bitfield(&piece_track,peer,i,&log);
                 break;
               case BT_CANCEL: //cancel
                 strcpy(msg,"MESSAGE CANCEL FROM");
-                //TODO: log
-                //snprintf(msginfo,50,"bitfield:%s",buf);
+                strcpy(msginfo,"");
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo);
+                log_write(&log);
+                //TODO: cancel
                 break;
             }
-            log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
-                msg,bt_args.peers[peerpos]->id,msginfo);
-            log_write(&log);
           }
         }
       }

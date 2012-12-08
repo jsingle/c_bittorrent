@@ -15,53 +15,180 @@
 #include "bt_lib.h"
 #include "bt_setup.h"
 
-int send_request(int fd, bt_request_t btrequest){
+int send_request(int fd, bt_request_t * btrequest){
+  bt_msg_t bitfield_msg;
+  bitfield_msg.length = 1+sizeof(bt_request_t);
+  bitfield_msg.bt_type = BT_REQUEST;
+  memcpy(&(bitfield_msg.payload.request),btrequest, sizeof(btrequest));
+  
+  int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
+  if(sent == bitfield_msg.length){
+    return 0;
+  }
+  else{
+    printf("error in send request, returned: %d\n",sent);
+    return 1;
+  }
+}
+
+
+int send_interested(int fd, int interested){
+  bt_msg_t bitfield_msg;
+  bitfield_msg.length = 1;
+  if(interested)
+  bitfield_msg.bt_type = BT_INTERSTED;
+  else
+    bitfield_msg.bt_type = BT_NOT_INTERESTED;
+  int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
+  if(sent == bitfield_msg.length + sizeof(int))
+    return 0;
+  else{
+    printf("error in send interested: %d\n",sent);
+    return 1;
+  }
+}
+
+
+//determine if interested in a peer, send appropriate interested msg
+//returns 1 on interested
+//      0 on not interested
+int is_interested(piece_tracker * piecetrack, 
+    peer_t *  peer, int fd,log_info * log){
+  int i,j;
+  int sent;
+  for(i=0;i<piecetrack->size;i++){
+    char a = 1<<7;
+    for(j=0;j<8;j++){
+      if(!(piecetrack->bitfield[i] & a) && (peer->btfield[i] & a)){
+        sent = send_interested(fd,1);//interested
+        if(sent){
+          log->len = snprintf(log->logmsg,100,
+              "MESSAGE INTERESTED TO peer:%s FAILED\n",
+              peer->id);
+        }
+        else{
+          log->len = snprintf(log->logmsg,100,
+              "MESSAGE INTERESTED TO peer:%s\n",
+              peer->id);
+        }
+        peer->interested = 1;
+        log_write(log);
+        return 1;
+      }
+      a = a>>1;
+    }
+  }
+
+  sent = send_interested(fd,0);//not interested
+  if(sent){
+    log->len = snprintf(log->logmsg,100,
+        "MESSAGE NOT INTERESTED TO peer:%s FAILED\n",
+        peer->id);
+  }
+  else{
+    log->len = snprintf(log->logmsg,100,
+        "MESSAGE NOT INTERESTED TO peer:%s\n",
+        peer->id);
+  }
+  peer->interested = 0;
+  log_write(log);
   return 0;
 }
 
 
 
 //process bitfields of peers and calls appropriate send_request
-int process_bitfield(bt_bitfield_t bfield, peer_t *  peer, int fd){
+//returns:
+//      0 - request send success
+//      1 - request send fail
+//      2 - couldn't find piece to request for
+int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info * log){
   int i,j;
   bt_request_t btrequest;
   int sent;
-  for(i=0;i<bfield.size;i++){
+  for(i=0;i<piecetrack->size;i++){
     char a = 1<<7;
     for(j=0;j<8;j++){
-      if(!(bfield.bitfield[i] & a) && (peer->btfield[i] & a)){
-        //TODO: set btrequest
-        sent = send_request(fd,btrequest);
-        return sent;
+      unsigned long int index = 8*i+j;
+      if(!(piecetrack->bitfield[i] & a) && (peer->btfield[i] & a)){
+        
+        //TODO: mabye choose a random section to request, not go serially?
+        
+        btrequest.begin = piecetrack->recvd_pos[index];
+
+        btrequest.index = index;
+        if(piecetrack->recv_size < (piecetrack->piece_size
+              - piecetrack->recvd_pos[index])){
+          btrequest.length = (int)piecetrack->recv_size;
+        }
+        else{
+          btrequest.length=piecetrack->piece_size-piecetrack->recvd_pos[index];
+        }
+        sent = send_request(fd,&btrequest);
+        if(sent){
+          log->len = snprintf(log->logmsg,100,
+              "MESSAGE REQUEST TO peer:%s index:%i FAILED\n",
+              peer->id,(int)index);
+        }else{
+          log->len = snprintf(log->logmsg,100,
+              "MESSAGE REQUEST TO peer:%s index:%i begin:%i len:%i\n",
+              peer->id,(int)index,btrequest.begin,btrequest.length);
+        }
+        log_write(log);
+       return sent;
       }
       a = a>>1;
     }
   }
-  return 0;
+  sent = send_interested(fd,0);//not interested
+  if(sent){
+    log->len = snprintf(log->logmsg,100,
+        "MESSAGE NOT INTERESTED TO peer:%s FAILED\n",
+        peer->id);
+  }
+  else{
+    log->len = snprintf(log->logmsg,100,
+        "MESSAGE NOT INTERESTED TO peer:%s\n",
+        peer->id);
+  }
+  peer->interested = 0;
+  return 2;
 }
 
 
 int send_have(int fd, int have){
   bt_msg_t bitfield_msg;
-  bitfield_msg.length = sizeof(int)*2;
+  bitfield_msg.length = sizeof(int) + 1;
   bitfield_msg.bt_type = BT_HAVE;
   bitfield_msg.payload.have = have;
-  int sent = send(fd,&bitfield_msg,bitfield_msg.length,0);
+  int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
   printf("Have %d sent!  Msg len: %3d, Sent Size %3d\n",
       bitfield_msg.payload.have,bitfield_msg.length,sent);
   return sent;
 }
 
 
-int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield){
-  // TODO send bitfield
-  bt_msg_t bitfield_msg;
-  bitfield_msg.length = sizeof(int) +1 +bfield.size;
-  bitfield_msg.bt_type = BT_BITFILED;
-  bitfield_msg.payload.bitfiled = bfield;
-  int sent = send(new_client_sockfd,&bitfield_msg,bitfield_msg.length,0);
-  printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",bitfield_msg.length,sent);
-  return sent;
+int send_bitfield(int new_client_sockfd,piece_tracker * piece_track,
+    peer_t * peer, log_info * log){
+  bt_msg_t * bitfield_msg = (bt_msg_t *)(piece_track->msg);
+  bitfield_msg->bt_type = BT_BITFILED;
+  bitfield_msg->length =  1 + piece_track->size;
+  int sent = send(new_client_sockfd,bitfield_msg,
+      sizeof(int) + bitfield_msg->length,0);
+  printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",
+      bitfield_msg->length,sent);
+  
+  if(sent == sizeof(int) + bitfield_msg->length){
+    log->len=snprintf(log->logmsg,100,
+        "MESSAGE BITFIELD TO peer:%s bfield:%s\n",
+        peer->id,piece_track->bitfield);
+  }else{
+    log->len=snprintf(log->logmsg,100,
+        "MESSAGE BITFIELD to peer:%s FAILED\n",peer->id);
+  }
+  log_write(log);
+        return sent;
+  
 }
 
 
@@ -91,7 +218,6 @@ void calc_id(char * ip, unsigned short port, char *id){
   len = snprintf(data,256,"%s%u",ip,port);
 
   //id is just the SHA1 of the ip and port string
-  //TODO uncomment this
   SHA1((unsigned char *) data, len, (unsigned char *) id); 
 
   return;
@@ -128,8 +254,9 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
     return 1;
   }
   printf("Accepted connection...\n");
+  
+  
   //TODO: fix sha
-
   //SHA1(ti_name, strlen(ti_name), twenty); 
 
   char self_id[] = "1232";
@@ -205,6 +332,12 @@ int init_peer(peer_t *peer, char * id, char * ip, unsigned short port){
   //set the host id and port for referece
   memcpy(peer->id, id, ID_SIZE);
   peer->port = port;
+  
+  /*
+  int i;
+  for(i=0;i<12;++i){
+  fprintf(stderr,"%c",ip[i]);
+  }*/
 
   //get the host by name
   if((hostinfo = gethostbyname(ip)) ==  NULL){

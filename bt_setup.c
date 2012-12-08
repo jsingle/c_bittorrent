@@ -250,13 +250,14 @@ int parse_bt_info(bt_info_t * out, be_node * node)
 	{
 	  // here we malloc the pieces_hash buffer based
 	  // on the number of pieces we have
-	  out -> piece_hashes = malloc(out->num_pieces*(be_str_len(node)));
-          // break currnode->val.s into 20 byte chunks and put
-          // pointers to it in out -> piece_hashes
-	  // FIXME
-          // So we get take the pices field
+	  out -> piece_hashes = (char **)malloc(out->num_pieces*sizeof(char *));
+          int k;
+          for(k=0;k<out->num_pieces;k++){//malloc a sha1 per piece
+            out->piece_hashes[k] = (char *)malloc(20);
+          }
+	  // FIXME 
           //out->piece_hashes = malloc(sizeof(currnode->val.s));
-          //memcpy(*(out->piece_hashes),currnode->val.s);
+          //strcpy(*(out->piece_hashes),currnode->val.s);
         }
       }
   }
