@@ -317,8 +317,14 @@ int main (int argc, char * argv[]){
                   //if we have it
                   
                   // message
-                  bt_msg_t * req_piece_msg = (bt_msg_t *) malloc(/*bt msg */ sizeof(int) + sizeof(unsigned char) + /* bt_piece_t */ + 2*sizeof(int) + /*data */ SUBPIECE_LEN );
-                  req_piece_msg -> length = sizeof(unsigned char) + /* bt_piece_t */ + 2*sizeof(int) + /*data */ SUBPIECE_LEN;
+                  bt_msg_t * req_piece_msg = (bt_msg_t *) 
+                    malloc(/*bt msg */ sizeof(int) + 
+                        sizeof(unsigned char) + 
+                        /* bt_piece_t */ + 2*sizeof(int) + 
+                        /*data */ SUBPIECE_LEN );
+                  req_piece_msg -> length = sizeof(unsigned char) + 
+                    /* bt_piece_t */ + 2*sizeof(int) + 
+                    /*data */ SUBPIECE_LEN;
                   req_piece_msg -> bt_type = BT_PIECE; 
 
                   // piece
@@ -337,7 +343,7 @@ int main (int argc, char * argv[]){
 
                   printf("Piece sent!  Msg len: %3d, Sent Size %3d\n",
       req_piece_msg->length,sent);
-                }{
+                }else{
                   // if we don't have it
                   strcpy(msg,"DON'T HAVE PIECE");
                   strcpy(msginfo,"");

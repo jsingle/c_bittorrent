@@ -115,7 +115,7 @@ FILE * process_savefile(bt_args_t * bt_args,
   }
   if(havepieces)printf("\n");
   printf("Have %d of %d pieces, download %d%% completed\n",
-      i,tracker_info->num_pieces,(int)(100*i)/tracker_info->num_pieces);
+      havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces);
 
 
   return savefile;
