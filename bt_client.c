@@ -21,10 +21,21 @@
 #define BUF_LEN 1024
 
 #include <openssl/sha.h> //hashing pieces
+// sorry bro
+bt_args_t bt_args;
 
+//prints final ping stats before exiting
+void int_handler(int signum){
+int i;
+for(i=0;i<MAX_CONNECTIONS;i++)  
+    close(bt_args.sockets[i]);
+
+printf("GOODBYE\n");
+
+exit(1);
+}
 
 int main (int argc, char * argv[]){
-  bt_args_t bt_args;
   be_node * node; // top node in the bencoding
   int i, maxfd,result, read_size;
   struct timeval tv;
@@ -41,6 +52,7 @@ int main (int argc, char * argv[]){
   fd_set readset, tempset;
   gettimeofday(&(log.start_tv),NULL);
 
+  signal(SIGINT, int_handler);
   // Parse and print args
   parse_args(&bt_args, argc, argv);
   if(bt_args.verbose) print_args(&bt_args);
@@ -337,7 +349,7 @@ int main (int argc, char * argv[]){
 
                   printf("Piece sent!  Msg len: %3d, Sent Size %3d\n",
       req_piece_msg->length,sent);
-                }{
+                }else{
                   // if we don't have it
                   strcpy(msg,"DON'T HAVE PIECE");
                   strcpy(msginfo,"");
