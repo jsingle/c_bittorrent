@@ -1,0 +1,12 @@
+README
+
+All torrents have tracker carrot.cs.swarthmore.edu:6969 except the
+ubuntu torrent.
+
+You can create your own torrent using ctorrent:
+
+Example:
+
+ ctorrent -t -u http://carrot.cs.swarthmore.edu:6969 -s random.txt.torrent random.txt 
+
+
