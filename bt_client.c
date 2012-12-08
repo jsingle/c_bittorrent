@@ -62,23 +62,11 @@ int main (int argc, char * argv[]){
   node = load_be_node(bt_args.torrent_file);
   if(bt_args.verbose) be_dump(node);
   bt_info_t tracker_info;
-  node = load_be_node(bt_args.torrent_file);
   parse_bt_info(&tracker_info,node); 
-
-  FILE * savefile;
-
-  savefile = fopen(tracker_info.name,"r+");
-  if (savefile == NULL) savefile = fopen(tracker_info.name,"w+");
-
-  //TODO fix sha1
-  char * sha1;
-  sha1 = tracker_info.name;
-
   
   
-  // TODO parse data file, create bitfield for restart
- 
-
+  
+  //setup bitfield, piece tracking
   piece_tracker piece_track;
   piece_track.size = tracker_info.num_pieces/8 +1;
   piece_track.msg = (char *)malloc(piece_track.size + sizeof(int)+ 1);
@@ -91,7 +79,22 @@ int main (int argc, char * argv[]){
     piece_track.recv_size = tracker_info.piece_length;
   }
   piece_track.recvd_pos = (unsigned long int *)
-    malloc(sizeof(unsigned long int)*piece_track.size);
+    malloc(sizeof(unsigned long int)*tracker_info.num_pieces);
+
+
+
+  //deal with savefile
+  FILE * savefile = process_savefile(&bt_args,&tracker_info,&piece_track);
+  
+
+  //TODO fix sha1
+  char * sha1;
+  sha1 = tracker_info.name;
+
+ 
+  
+  // TODO parse data file, create bitfield for restart
+ 
 
 
 
@@ -225,7 +228,6 @@ int main (int argc, char * argv[]){
               //exit(1);
             }
             // switch on type of bt_message and handle accordingly
-            // TODO change the rest of these to #define vals
             int have;
             unsigned char bhave;
             int charpos;
@@ -266,9 +268,9 @@ int main (int argc, char * argv[]){
               case BT_HAVE: //have
                 read(i,&have,message_len-1);
                 bhave = 1;
+                bhave = bhave<<7;
                 charpos = have%8;
-                charpos = 7-charpos;
-                bhave<<=charpos;
+                bhave=bhave>>charpos;
                 bt_args.peers[peerpos]->btfield[have/8] |= bhave;
                 strcpy(msg,"MESSAGE HAVE FROM");
                 snprintf(msginfo,50,"have:%d",have);
