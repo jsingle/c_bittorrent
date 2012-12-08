@@ -17,13 +17,11 @@
 
 int send_request(int fd, bt_request_t * btrequest){
   bt_msg_t bitfield_msg;
-  bitfield_msg.length = 1+sizeof(bt_request_t) + 1;
+  bitfield_msg.length = 1+sizeof(bt_request_t);
   bitfield_msg.bt_type = BT_REQUEST;
   memcpy(&(bitfield_msg.payload.request),btrequest, sizeof(btrequest));
-
   
-  
-  int sent = send(fd,&bitfield_msg,bitfield_msg.length,0);
+  int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
   if(sent == bitfield_msg.length){
     return 0;
   }
@@ -58,10 +56,10 @@ int is_interested(piece_tracker * piecetrack,
     peer_t *  peer, int fd,log_info * log){
   int i,j;
   int sent;
-  for(i=0;i<piecetrack->bfield->size;i++){
+  for(i=0;i<piecetrack->size;i++){
     char a = 1<<7;
     for(j=0;j<8;j++){
-      if(!(piecetrack->bfield->bitfield[i] & a) && (peer->btfield[i] & a)){
+      if(!(piecetrack->bitfield[i] & a) && (peer->btfield[i] & a)){
         sent = send_interested(fd,1);//interested
         if(sent){
           log->len = snprintf(log->logmsg,100,
@@ -108,11 +106,14 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
   int i,j;
   bt_request_t btrequest;
   int sent;
-  for(i=0;i<piecetrack->bfield->size;i++){
+  for(i=0;i<piecetrack->size;i++){
     char a = 1<<7;
     for(j=0;j<8;j++){
       unsigned long int index = 8*i+j;
-      if(!(piecetrack->bfield->bitfield[i] & a) && (peer->btfield[i] & a)){
+      if(!(piecetrack->bitfield[i] & a) && (peer->btfield[i] & a)){
+        
+        //TODO: mabye choose a random section to request, not go serially?
+        
         btrequest.begin = piecetrack->recvd_pos[index];
 
         btrequest.index = index;
@@ -167,21 +168,20 @@ int send_have(int fd, int have){
 }
 
 
-int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield,
+int send_bitfield(int new_client_sockfd,piece_tracker * piece_track,
     peer_t * peer, log_info * log){
-  // TODO send bitfield
-  bt_msg_t bitfield_msg;
-  bitfield_msg.length =  1 +bfield.size;
-  bitfield_msg.bt_type = BT_BITFILED;
-  bitfield_msg.payload.bitfiled = bfield;
-  int sent = send(new_client_sockfd,&bitfield_msg,
-      sizeof(int) + bitfield_msg.length,0);
+  bt_msg_t * bitfield_msg = (bt_msg_t *)(piece_track->msg);
+  bitfield_msg->bt_type = BT_BITFILED;
+  bitfield_msg->length =  1 + piece_track->size;
+  int sent = send(new_client_sockfd,bitfield_msg,
+      sizeof(int) + bitfield_msg->length,0);
   printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",
-      bitfield_msg.length,sent);
+      bitfield_msg->length,sent);
   
-  if(sent == sizeof(int) + bitfield_msg.length){
+  if(sent == sizeof(int) + bitfield_msg->length){
     log->len=snprintf(log->logmsg,100,
-        "MESSAGE BITFIELD TO peer:%s bfield:%s\n",peer->id,bfield.bitfield);
+        "MESSAGE BITFIELD TO peer:%s bfield:%s\n",
+        peer->id,piece_track->bitfield);
   }else{
     log->len=snprintf(log->logmsg,100,
         "MESSAGE BITFIELD to peer:%s FAILED\n",peer->id);
@@ -218,7 +218,6 @@ void calc_id(char * ip, unsigned short port, char *id){
   len = snprintf(data,256,"%s%u",ip,port);
 
   //id is just the SHA1 of the ip and port string
-  //TODO uncomment this
   SHA1((unsigned char *) data, len, (unsigned char *) id); 
 
   return;

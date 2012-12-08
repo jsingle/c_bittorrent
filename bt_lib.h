@@ -110,17 +110,19 @@ typedef struct {
  **/
 
 typedef struct {
-  char * bitfield; //bitfield where each bit represents a piece that
-                   //the peer has or doesn't have
   size_t size;//size of the bitfiled
+  char  bitfield[0]; //bitfield where each bit represents a piece that
+                   //the peer has or doesn't have
 } bt_bitfield_t;
 
 
 
 
 typedef struct{
-  bt_bitfield_t * bfield;
   unsigned long int recv_size, piece_size, * recvd_pos;
+  size_t size;
+  char * msg;
+  char* bitfield;
 } piece_tracker;
 
 
@@ -164,7 +166,7 @@ int is_interested(piece_tracker * piecetrack,
 int send_request(int fd, bt_request_t  *btrequest);
 int process_bitfield(piece_tracker * piece_track, peer_t  * peer, int fd,
     log_info * log);
-int send_bitfield(int new_client_sockfd,bt_bitfield_t bfield,
+int send_bitfield(int new_client_sockfd,piece_tracker * piece_track,
     peer_t * peer, log_info * log);
 int send_have(int fd,int have);
 
