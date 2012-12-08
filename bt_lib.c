@@ -168,8 +168,11 @@ int send_have(int fd, int have){
 }
 
 
-int send_bitfield(int new_client_sockfd,piece_tracker * piece_track,
-    peer_t * peer, log_info * log){
+int send_bitfield(
+    int new_client_sockfd,
+    piece_tracker * piece_track,
+    peer_t * peer, log_info * log)
+{
   bt_msg_t * bitfield_msg = (bt_msg_t *)(piece_track->msg);
   bitfield_msg->bt_type = BT_BITFILED;
   bitfield_msg->length =  1 + piece_track->size;
@@ -399,3 +402,9 @@ void get_peer_handshake(peer_t * p, char * sha1 , char * h_message){
   return;
 }
 
+
+/*
+int load_piece_from_file(FILE * fp, bt_piece_t * piece){
+  return 0;
+}
+*/

@@ -47,7 +47,7 @@
 
 #define H_MSG_LEN 68
 
-
+#define SUBPIECE_LEN 32768
   
 
 
@@ -164,6 +164,7 @@ int send_interested(int fd,int interested);
 int is_interested(piece_tracker * piecetrack,
     peer_t * peer,int fd, log_info * log);
 int send_request(int fd, bt_request_t  *btrequest);
+
 int process_bitfield(piece_tracker * piece_track, peer_t  * peer, int fd,
     log_info * log);
 int send_bitfield(int new_client_sockfd,piece_tracker * piece_track,
@@ -213,6 +214,9 @@ int save_piece(bt_args_t * bt_args, bt_piece_t * piece);
 
 /*load a piece of the file into piece */
 int load_piece(bt_args_t * bt_args, bt_piece_t * piece);
+
+
+int load_piece_from_file(FILE * fp, long index, bt_piece_t * piece);
 
 /*load the bitfield into bitfield*/
 int get_bitfield(bt_args_t * bt_args, bt_bitfield_t * bitfield);
