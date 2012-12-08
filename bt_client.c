@@ -222,7 +222,6 @@ int main (int argc, char * argv[]){
               //exit(1);
             }
             // switch on type of bt_message and handle accordingly
-            // TODO change the rest of these to #define vals
             int have;
             unsigned char bhave;
             int charpos;
