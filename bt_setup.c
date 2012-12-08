@@ -9,6 +9,125 @@
 #include "bencode.h"
 #include <arpa/inet.h>
 
+
+
+
+
+
+
+
+
+
+FILE * process_savefile(bt_args_t * bt_args,
+    bt_info_t * tracker_info,
+    piece_tracker * piece_track)
+{
+
+  int i;
+  //deal with savefile
+  char * t_file_name;
+  if(!strcmp(bt_args->save_file,"")){
+    t_file_name = tracker_info->name;
+  }else{
+    t_file_name = bt_args->save_file;
+  }
+  FILE * savefile;
+  int newf = 0;
+  savefile = fopen(t_file_name,"r+");
+  if (savefile == NULL){
+    printf("Creating new file \"%s\" as savefile\n",t_file_name);
+    newf = 1;
+    savefile = fopen(t_file_name,"w+");
+    if(savefile == NULL){
+      perror("Opening savefile failed");
+      exit(1);
+    }
+  }else{
+    printf("Reading and checing existing savefile \"%s\"\n",t_file_name);
+    fseek(savefile,0L,SEEK_END);
+    int file_l = ftell(savefile);
+    printf("file size: %d\n",file_l);
+    fseek(savefile,0L,SEEK_SET);
+    if(file_l < tracker_info->length){
+      //make file bigger
+      fseek(savefile,tracker_info->length,SEEK_SET);
+      file_l = ftell(savefile);
+    printf("file size set: %d\n",file_l);
+    }
+    //TODO: deal with savefiles that are too long
+    char * piece;
+    char * shapiece;
+    piece = (char *)malloc(tracker_info->piece_length);
+    shapiece = (char *)malloc(20);
+    int sread;
+    fseek(savefile,0L,SEEK_SET);
+    for(i=0;i<tracker_info->num_pieces-1;i++){
+      sread = fread(piece,1,tracker_info->piece_length,savefile);
+      if(sread != tracker_info->piece_length){
+        printf("problem reading savefile: read:%d, wanted:%d fileloc:%d\n",
+            sread, tracker_info->piece_length,ftell(savefile));
+      }
+      //sha1 of piece into shapiece
+      SHA1((unsigned char *)piece,tracker_info->piece_length,
+          (unsigned char *)shapiece);
+      if(!memcmp(tracker_info->piece_hashes[i],shapiece,20)){
+        //printf("Piece %d verified\n",i);
+        char bitand = 1;
+        bitand = bitand<<7;
+        bitand = bitand>>(i%8);
+        piece_track->bitfield[i/8] |= bitand;
+      }else{
+        //printf("Piece %d not verified\n",i);
+      }
+    }
+    //verify last piece
+    int last_pl = tracker_info->length
+      - tracker_info->piece_length*(tracker_info->num_pieces-1);
+      sread = fread(piece,1,last_pl,savefile);
+      if(sread != last_pl){
+        printf("problem reading savefile: read:%d, wanted:%d fileloc:%d\n",
+            sread, last_pl,ftell(savefile));
+      }
+      //sha1 of piece into shapiece
+      SHA1((unsigned char *)piece,last_pl,
+          (unsigned char *)shapiece);
+      if(!memcmp(tracker_info->piece_hashes[i],shapiece,20)){
+        //printf("Piece %d verified\n",i);
+        char bitand = 1;
+        bitand = bitand<<7;
+        bitand = bitand>>(i%8);
+        piece_track->bitfield[i/8] |= bitand;
+      }else{
+        //printf("Piece %d not verified\n",i);
+      }
+    //setup bitfield
+  }
+  //TODO: print bitfield, progress
+  int havepieces=0;
+  for(i=0;i<tracker_info->num_pieces;i++){
+    char bitand = 1<<7;
+    if(piece_track->bitfield[i/8] & bitand>>(i%8)){
+      if(!havepieces) printf("Have pieces: %d",i);
+      else printf(", %d",i);
+      havepieces++;
+    }
+  }
+  if(havepieces)printf("\n");
+  printf("Have %d of %d pieces, download %d%% completed\n",
+      i,tracker_info->num_pieces,(int)(100*i)/tracker_info->num_pieces);
+
+
+  return savefile;
+}
+
+
+
+
+
+
+
+
+
 /**
  * usage(FILE * file) -> void
  *
