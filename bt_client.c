@@ -67,6 +67,9 @@ int main (int argc, char * argv[]){
   FD_SET(incoming_sockfd, &readset);
   maxfd = incoming_sockfd;
 
+  char * sha1 = malloc(20);//used for handshake
+//TODO: fix sha1
+  bzero(sha1,20);
 
 
   //read and parse the torrent file
@@ -101,23 +104,15 @@ int main (int argc, char * argv[]){
   bzero(piece_track.recvd_pos,
       sizeof(unsigned long int)*tracker_info.num_pieces);
 
+  log.len = snprintf(log.logmsg,100,"Setup Piece Tracking, bitfield len %d\n",
+      (int)piece_track.size);
+  log_write(&log);
+  
+  
   //deal with savefile
   FILE * savefile = process_savefile(&bt_args,&tracker_info,&piece_track);
-
-
-
-  //TODO fix sha1
-  char * sha1;
-  sha1 = tracker_info.name;
-
-
-
-  // TODO parse data file, create bitfield for restart
-
-
-
-
-
+  
+  
   //TODO: connections should initially be choked and uninterested
   peer_t * peer;
   for(i=0;i<MAX_CONNECTIONS;i++){  
@@ -291,9 +286,9 @@ int main (int argc, char * argv[]){
                 log_write(&log);
                 break;
               case BT_HAVE: //have
+                read(i,&bfsize,3);
                 read(i,&have,message_len-1);
-                bhave = 1;
-                bhave = bhave<<7;
+                bhave = 0x80;
                 charpos = have%8;
                 bhave=bhave>>charpos;
                 bt_args.peers[peerpos]->btfield[have/8] |= bhave;
@@ -438,9 +433,18 @@ int main (int argc, char * argv[]){
                     printf("data received exceeds remaining piece size!\n");
                     data_len = tracker_info.piece_length - recv_piece.begin;
                   }
-                  if(recv_piece.index*tracker_info.piece_length+recv_piece.begin
+                  if(recv_piece.index*tracker_info.piece_length+
+                      recv_piece.begin
                       > tracker_info.length){
                     printf("data received exceeds end of file!!\n");
+                    printf("index*len + begin: %d\n",
+                        recv_piece.index*tracker_info.piece_length+
+                        recv_piece.begin);
+                    printf("index %d, len %d, begin %d, totlen %d\n",
+                        recv_piece.index,
+                        tracker_info.piece_length,
+                        recv_piece.begin,
+                        tracker_info.length);
                   }
                   fseek(savefile,recv_piece.index*tracker_info.piece_length + 
                       recv_piece.begin,SEEK_SET);
@@ -469,7 +473,8 @@ int main (int argc, char * argv[]){
                       piece_track.recvd_pos[recv_piece.index];
                   }
 
-                  if(recv_piece.index*tracker_info.piece_length+recv_piece.begin
+                  if(recv_piece.index*(tracker_info.piece_length)
+                      +recv_piece.begin
                       > tracker_info.length){
                     printf("data received exceeds end of file!!\n");
                   }
@@ -512,15 +517,20 @@ int main (int argc, char * argv[]){
                   if(!memcmp(tracker_info.piece_hashes[recv_piece.index],
                         piecesha,20)){
                     printf("Verified downloaded piece %d\n",recv_piece.index);
-                    log.len = snprintf(log.logmsg,100,"VERIFIED PIECE %d",
+                    log.len = snprintf(log.logmsg,100,"VERIFIED PIECE %d\n",
                         recv_piece.index);
                     log_write(&log);
 
-                    char bitand = 1<<7;
+                    unsigned char bitand = 0x80;
                     bitand = bitand>>(recv_piece.index%8);
                     piece_track.bitfield[recv_piece.index/8] |= bitand;
                     test_progress(&piece_track,&tracker_info);
                     send_have(i,recv_piece.index);
+                    log.len = snprintf(log.logmsg,100,"MESSAGE HAVE TO peer:%s have:%d\n",
+                        peer->id,
+                        recv_piece.index);
+                    log_write(&log);
+                    
                   }else{
                     printf("Verify of piece %d failed!\n",recv_piece.index);
                     piece_track.recvd_pos[recv_piece.index] = 0;
@@ -542,7 +552,7 @@ int main (int argc, char * argv[]){
                     if(!memcmp(tracker_info.piece_hashes[recv_piece.index],
                           piecesha,20)){
                       printf("Verified downloaded piece %d\n",recv_piece.index);
-                      log.len = snprintf(log.logmsg,100,"VERIFIED PIECE %d",
+                      log.len = snprintf(log.logmsg,100,"VERIFIED PIECE %d\n",
                           recv_piece.index);
                       log_write(&log);
 

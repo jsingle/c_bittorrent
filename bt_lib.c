@@ -22,7 +22,7 @@ void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info){
   int i;
   int havepieces=0;
   for(i=0;i<tracker_info->num_pieces;i++){
-    char bitand = 1<<7;
+    unsigned char bitand = 0x80;
     if(piece_track->bitfield[i/8] & bitand>>(i%8)){
       if(!havepieces) printf("Have pieces: %d",i);
       else printf(", %d",i);
@@ -45,7 +45,7 @@ int send_request(int fd, bt_request_t * btrequest){
   bitfield_msg.length = 1+3 +sizeof(bt_request_t);
   bitfield_msg.bt_type = BT_REQUEST;
   memcpy(&(bitfield_msg.payload.request),btrequest, sizeof(bt_request_t));
-  
+
   int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
   if(sent == bitfield_msg.length + sizeof(int)){
     return 0;
@@ -61,7 +61,7 @@ int send_interested(int fd, int interested){
   bt_msg_t bitfield_msg;
   bitfield_msg.length = 1;
   if(interested)
-  bitfield_msg.bt_type = BT_INTERSTED;
+    bitfield_msg.bt_type = BT_INTERSTED;
   else
     bitfield_msg.bt_type = BT_NOT_INTERESTED;
   int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
@@ -132,13 +132,13 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
   bt_request_t btrequest;
   int sent;
   for(i=0;i<piecetrack->size;i++){
-    char a = 1<<7;
+    unsigned char a = 0x80;
     for(j=0;j<8;j++){
       unsigned long int index = 8*i+j;
       if(!(piecetrack->bitfield[i] & a) && (peer->btfield[i] & a)){
-        
+
         //TODO: mabye choose a random section to request, not go serially?
-        
+
         btrequest.begin = piecetrack->recvd_pos[index];
         btrequest.index = index;
         if(piecetrack->recv_size < (piecetrack->piece_size
@@ -148,11 +148,11 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
         else{
           btrequest.length=piecetrack->piece_size-piecetrack->recvd_pos[index];
         }
-        
+
         //deal with last piece scenario
         if(index==piecetrack->last_piece){
-          if(btrequest.length > piecetrack->lp_size)
-            btrequest.length = piecetrack->lp_size;
+          if(btrequest.length+btrequest.begin > piecetrack->lp_size)
+            btrequest.length = piecetrack->lp_size-btrequest.begin;
         }
 
         sent = send_request(fd,&btrequest);
@@ -166,7 +166,7 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
               peer->id,(int)index,btrequest.begin,btrequest.length);
         }
         log_write(log);
-       return sent;
+        return sent;
       }
       a = a>>1;
     }
@@ -210,23 +210,23 @@ int send_bitfield(
   bitfield_msg->payload.bitfiled.size = (size_t)piece_track->size;
 
   /*
-  printf("msg:%d type:%d length:%d bfiled:%d\n",
-      bitfield_msg,&(bitfield_msg->bt_type),&(bitfield_msg->length),
-      &(bitfield_msg->payload.bitfiled));
-  printf("bf: pt:%d send:%d\n",
-      piece_track->bitfield,bitfield_msg->payload.bitfiled.bitfield);
- 
+     printf("msg:%d type:%d length:%d bfiled:%d\n",
+     bitfield_msg,&(bitfield_msg->bt_type),&(bitfield_msg->length),
+     &(bitfield_msg->payload.bitfiled));
+     printf("bf: pt:%d send:%d\n",
+     piece_track->bitfield,bitfield_msg->payload.bitfiled.bitfield);
 
-  printf("sending bitfield: %c\n",piece_track->bitfield[0]);
-  printf("sending bitfield: %c\n",bitfield_msg->payload.bitfiled.bitfield[0]);
-*/
+
+     printf("sending bitfield: %c\n",piece_track->bitfield[0]);
+     printf("sending bitfield: %c\n",bitfield_msg->payload.bitfiled.bitfield[0]);
+     */
 
 
   int sent = send(new_client_sockfd,bitfield_msg,
       sizeof(int) + bitfield_msg->length,0);
   printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",
       bitfield_msg->length,sent);
-  
+
   if(sent == sizeof(int) + bitfield_msg->length){
     log->len=snprintf(log->logmsg,100,
         "MESSAGE BITFIELD TO peer:%s bfield:%s\n",
@@ -236,8 +236,8 @@ int send_bitfield(
         "MESSAGE BITFIELD to peer:%s FAILED\n",peer->id);
   }
   log_write(log);
-        return sent;
-  
+  return sent;
+
 }
 
 
@@ -303,10 +303,7 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
     return 1;
   }
   printf("Accepted connection...\n");
-  
-  
-  //TODO: fix sha
-  //SHA1(ti_name, strlen(ti_name), twenty); 
+
 
   char self_id[] = "1232";
 
@@ -381,12 +378,12 @@ int init_peer(peer_t *peer, char * id, char * ip, unsigned short port){
   //set the host id and port for referece
   memcpy(peer->id, id, ID_SIZE);
   peer->port = port;
-  
+
   /*
-  int i;
-  for(i=0;i<12;++i){
-  fprintf(stderr,"%c",ip[i]);
-  }*/
+     int i;
+     for(i=0;i<12;++i){
+     fprintf(stderr,"%c",ip[i]);
+     }*/
 
   //get the host by name
   if((hostinfo = gethostbyname(ip)) ==  NULL){
@@ -450,7 +447,7 @@ void get_peer_handshake(peer_t * p, char * sha1 , char * h_message){
 
 
 /*
-int load_piece_from_file(FILE * fp, bt_piece_t * piece){
-  return 0;
-}
-*/
+   int load_piece_from_file(FILE * fp, bt_piece_t * piece){
+   return 0;
+   }
+   */

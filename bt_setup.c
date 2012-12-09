@@ -54,7 +54,7 @@ FILE * process_savefile(bt_args_t * bt_args,
       fseek(savefile,tracker_info->length,SEEK_SET);
       file_l = ftell(savefile);
       printf("file size set: %d\n",file_l);
-    }
+    }else{//only try to verify files that are long enough
     //TODO: deal with savefiles that are too long
     char * piece;
     char * shapiece;
@@ -117,17 +117,10 @@ FILE * process_savefile(bt_args_t * bt_args,
   if(havepieces)printf("\n");
   printf("Have %d of %d pieces, download %d%% completed\n",
       havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces);
-
+  }
 
   return savefile;
 }
-
-
-
-
-
-
-
 
 
 /**
@@ -136,7 +129,6 @@ FILE * process_savefile(bt_args_t * bt_args,
  * print the usage of this program to the file stream file
  *
  **/
-
 void usage(FILE * file){
   if(file == NULL){
     file = stdout;
@@ -349,8 +341,8 @@ int parse_bt_info(bt_info_t * out, be_node * node)
     if(strcmp(node->val.d[i].key,"announce") == 0)
       strcpy(out->announce,currnode->val.s);
     
-    else if(strcmp(node->val.d[i].key,"info") == 0)
-      for (j = 0; currnode->val.d[j].val; ++j) {
+    else if(strcmp(node->val.d[i].key,"info") == 0){
+    for (j = 0; currnode->val.d[j].val; ++j) {
         infonode = currnode -> val.d[j].val;
 	
 	if(strcmp(currnode->val.d[j].key,"name") == 0)
@@ -379,6 +371,7 @@ int parse_bt_info(bt_info_t * out, be_node * node)
           }
         }
       }
+    }
   }
   return 1;
 }
@@ -402,6 +395,16 @@ int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
   //TODO: compare full handshake, need our IP
   if(memcmp(h_message,rh_message,48)){ //don't match
     printf("Handshake attempted, no match, closing connection: %s\n",rh_message);
+    int x;
+    printf("hmessage:\n");
+    for(x=0;x<68;++x){
+      printf("%d ",h_message[x]);
+    }
+    printf("\nrhmessage:\n");
+    for(x=0;x<68;++x){
+      printf("%d ",rh_message[x]);
+    }
+    printf("\n");
     close(peer_sock_fd);
     return 1;
   }else {  //handshake match
