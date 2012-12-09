@@ -117,6 +117,8 @@ int main (int argc, char * argv[]){
   //TODO: more code comments? in bt_lib.c
   //TODO: readme
   //TODO: free all memory malloced
+  //TODO: choking protocol?  optional
+
 
   //TODO: connections should initially be choked and uninterested
   //so we need code to initialize, then unchoke them, etc
