@@ -203,7 +203,7 @@ int main (int argc, char * argv[]){
             }else{
               bt_args.peers[peerpos] = malloc(sizeof(peer_t)); // FREE'D
               if(accept_new_peer(incoming_sockfd, sha1,h_message, rh_message,
-                    &new_client_sockfd, &logger,bt_args.peers[peerpos])){
+                    &new_client_sockfd,bt_args.peers[peerpos])){
                 free(bt_args.peers[peerpos]);
                 bt_args.peers[peerpos] = NULL;
               }else{
@@ -215,8 +215,7 @@ int main (int argc, char * argv[]){
                 }
                 bt_args.sockets[peerpos] = new_client_sockfd;
                 send_bitfield(new_client_sockfd,&piece_track,
-                    bt_args.peers[peerpos],
-                    &logger);
+                    bt_args.peers[peerpos]);
               }
             }
           }
@@ -303,8 +302,8 @@ int main (int argc, char * argv[]){
                     bt_args.peers[peerpos]->id,have);
 
 
-                if(is_interested(&piece_track,peer,i,&logger))
-                  proc_b = process_bitfield(&piece_track,peer,i,&logger);
+                if(is_interested(&piece_track,peer,i))
+                  proc_b = process_bitfield(&piece_track,peer,i);
                 break;
               case BT_BITFILED: //bitfield
                 //printf("want bfield size of: %d for bfield\n",(int)bfield.size);
@@ -327,8 +326,8 @@ int main (int argc, char * argv[]){
                     bt_args.peers[peerpos]->id,peer->btfield);
 
 
-                if(is_interested(&piece_track,peer,i,&logger))
-                  proc_b = process_bitfield(&piece_track,peer,i,&logger);
+                if(is_interested(&piece_track,peer,i))
+                  proc_b = process_bitfield(&piece_track,peer,i);
                 break;
               case BT_REQUEST: //request
 
@@ -576,8 +575,8 @@ int main (int argc, char * argv[]){
                   }
                 }
 
-                if(is_interested(&piece_track,peer,i,&logger))
-                  proc_b = process_bitfield(&piece_track,peer,i,&logger);
+                if(is_interested(&piece_track,peer,i))
+                  proc_b = process_bitfield(&piece_track,peer,i);
                 break;
               case BT_CANCEL: //cancel
 

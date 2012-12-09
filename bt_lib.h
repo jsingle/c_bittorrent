@@ -164,16 +164,15 @@ typedef struct bt_msg{
 
 int send_interested(int fd,int interested);
 int is_interested(piece_tracker * piecetrack,
-    peer_t * peer,int fd, log_info * log);
+    peer_t * peer,int fd);
 int send_request(int fd, bt_request_t  *btrequest);
 
-int process_bitfield(piece_tracker * piece_track, peer_t  * peer, int fd,
-    log_info * log);
+int process_bitfield(piece_tracker * piece_track, peer_t  * peer, int fd);
 int send_bitfield(int new_client_sockfd,piece_tracker * piece_track,
-    peer_t * peer, log_info * log);
+    peer_t * peer);
 int send_have(int fd,int have);
 
-int log_write(log_info * log);
+//int log_write(log_info * log);
 
 void log_record(const char * format, ... );
 
@@ -237,7 +236,7 @@ int contact_tracker(bt_args_t * bt_args);
 void get_peer_handshake(peer_t * p, char * sha1, char * h_message);
 
 // accept new peer
-int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message, int * newfd, log_info * log, peer_t* peer);
+int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message, int * newfd, peer_t* peer);
 
 int make_bitfield_msg();
 

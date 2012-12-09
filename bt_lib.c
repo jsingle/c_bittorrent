@@ -81,7 +81,7 @@ int send_interested(int fd, int interested){
 //returns 1 on interested
 //      0 on not interested
 int is_interested(piece_tracker * piecetrack, 
-    peer_t *  peer, int fd,log_info * log){
+    peer_t *  peer, int fd){
   int i,j;
   int sent;
   for(i=0;i<piecetrack->size;i++){
@@ -125,7 +125,7 @@ int is_interested(piece_tracker * piecetrack,
 //      0 - request send success
 //      1 - request send fail
 //      2 - couldn't find piece to request for
-int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info * log){
+int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd){
   int i,j;
   bt_request_t btrequest;
   int sent;
@@ -194,7 +194,7 @@ int send_have(int fd, int have){
 int send_bitfield(
     int new_client_sockfd,
     piece_tracker * piece_track,
-    peer_t * peer, log_info * log)
+    peer_t * peer )
 {
   bt_msg_t * bitfield_msg = (bt_msg_t *)(piece_track->msg);
   bitfield_msg->bt_type = BT_BITFILED;
@@ -269,7 +269,7 @@ int add_peer(peer_t *peer, bt_args_t *bt_args, char * hostname, unsigned short p
 }
 
 
-int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message, int * newfd, log_info * log, peer_t * peer){
+int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message, int * newfd, peer_t * peer){
   //try to accept incoming connection from new peer 
   // Wait for a connection on the socket
   int client_fd;              // socket file descriptor

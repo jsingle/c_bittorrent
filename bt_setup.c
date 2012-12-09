@@ -43,7 +43,7 @@ void setup_peer_bitfields(char * sha1,piece_tracker * piece_track,char * h_messa
       }else{
         log_record("HANDSHAKE SUCCESS peer:%s port:%d id:%20s\n",
             inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
-        send_bitfield(bt_args.sockets[i],piece_track,peer,&logger);
+        send_bitfield(bt_args.sockets[i],piece_track,peer);
       }
     }
   }
