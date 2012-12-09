@@ -132,7 +132,7 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
   bt_request_t btrequest;
   int sent;
   for(i=0;i<piecetrack->size;i++){
-    
+
     unsigned char a = 0x80;
     for(j=0;j<8;j++){
       unsigned long int index = 8*i+j;

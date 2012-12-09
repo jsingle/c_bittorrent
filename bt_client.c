@@ -107,15 +107,17 @@ int main (int argc, char * argv[]){
   log.len = snprintf(log.logmsg,100,"Setup Piece Tracking, bitfield len %d\n",
       (int)piece_track.size);
   log_write(&log);
-  
-  
+
+
   //deal with savefile
   FILE * savefile = process_savefile(&bt_args,&tracker_info,&piece_track);
 
-  //TODO: peer ids in handshake, we need to get our ip
+  //TODO: peer ids in handshake, we need to get our ip (see piazza)
   //TODO: cleanup printed output
   //TODO: more code comments? in bt_lib.c
-  
+  //TODO: readme
+  //TODO: free all memory malloced
+
   //TODO: connections should initially be choked and uninterested
   //so we need code to initialize, then unchoke them, etc
   //TODO: modularize code
@@ -536,7 +538,7 @@ int main (int argc, char * argv[]){
                         peer->id,
                         recv_piece.index);
                     log_write(&log);
-                    
+
                   }else{
                     printf("Verify of piece %d failed!\n",recv_piece.index);
                     piece_track.recvd_pos[recv_piece.index] = 0;

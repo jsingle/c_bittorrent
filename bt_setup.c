@@ -46,11 +46,11 @@ FILE * process_savefile(bt_args_t * bt_args,
     fseek(savefile,0L,SEEK_END);
     int file_l = ftell(savefile);
     fseek(savefile,0L,SEEK_SET);
-      //make file bigger
-      fseek(savefile,tracker_info->length-1,SEEK_SET);
-      fwrite("x",1,1,savefile);//writes to ensure proper length
-      file_l = ftell(savefile);
-      printf("file size set: %d\n",file_l);
+    //make file bigger
+    fseek(savefile,tracker_info->length-1,SEEK_SET);
+    fwrite("x",1,1,savefile);//writes to ensure proper length
+    file_l = ftell(savefile);
+    printf("file size set: %d\n",file_l);
   }else{
     printf("Reading and checking existing savefile \"%s\"\n",t_file_name);
     fseek(savefile,0L,SEEK_END);
@@ -64,21 +64,42 @@ FILE * process_savefile(bt_args_t * bt_args,
       file_l = ftell(savefile);
       printf("file size set: %d\n",file_l);
     }else{//only try to verify files that are long enough
-    //TODO: deal with savefiles that are too long
-    char * piece;
-    char * shapiece;
-    piece = (char *)malloc(tracker_info->piece_length);
-    shapiece = (char *)malloc(20);
-    int sread;
-    fseek(savefile,0L,SEEK_SET);
-    for(i=0;i<tracker_info->num_pieces-1;i++){
-      sread = fread(piece,1,tracker_info->piece_length,savefile);
-      if(sread != tracker_info->piece_length){
+      //TODO: deal with savefiles that are too long
+      char * piece;
+      char * shapiece;
+      piece = (char *)malloc(tracker_info->piece_length);
+      shapiece = (char *)malloc(20);
+      int sread;
+      fseek(savefile,0L,SEEK_SET);
+      for(i=0;i<tracker_info->num_pieces-1;i++){
+        sread = fread(piece,1,tracker_info->piece_length,savefile);
+        if(sread != tracker_info->piece_length){
+          printf("problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
+              sread, tracker_info->piece_length,ftell(savefile));
+        }
+        //sha1 of piece into shapiece
+        SHA1((unsigned char *)piece,tracker_info->piece_length,
+            (unsigned char *)shapiece);
+        if(!memcmp(tracker_info->piece_hashes[i],shapiece,20)){
+          //printf("Piece %d verified\n",i);
+          char bitand = 1;
+          bitand = bitand<<7;
+          bitand = bitand>>(i%8);
+          piece_track->bitfield[i/8] |= bitand;
+        }else{
+          //printf("Piece %d not verified\n",i);
+        }
+      }
+      //verify last piece
+      int last_pl = tracker_info->length
+        - tracker_info->piece_length*(tracker_info->num_pieces-1);
+      sread = fread(piece,1,last_pl,savefile);
+      if(sread != last_pl){
         printf("problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
-            sread, tracker_info->piece_length,ftell(savefile));
+            sread, last_pl,ftell(savefile));
       }
       //sha1 of piece into shapiece
-      SHA1((unsigned char *)piece,tracker_info->piece_length,
+      SHA1((unsigned char *)piece,last_pl,
           (unsigned char *)shapiece);
       if(!memcmp(tracker_info->piece_hashes[i],shapiece,20)){
         //printf("Piece %d verified\n",i);
@@ -89,41 +110,20 @@ FILE * process_savefile(bt_args_t * bt_args,
       }else{
         //printf("Piece %d not verified\n",i);
       }
+      //setup bitfield
     }
-    //verify last piece
-    int last_pl = tracker_info->length
-      - tracker_info->piece_length*(tracker_info->num_pieces-1);
-    sread = fread(piece,1,last_pl,savefile);
-    if(sread != last_pl){
-      printf("problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
-          sread, last_pl,ftell(savefile));
+    int havepieces=0;
+    for(i=0;i<tracker_info->num_pieces;i++){
+      char bitand = 1<<7;
+      if(piece_track->bitfield[i/8] & bitand>>(i%8)){
+        if(!havepieces) printf("Have pieces: %d",i);
+        else printf(", %d",i);
+        havepieces++;
+      }
     }
-    //sha1 of piece into shapiece
-    SHA1((unsigned char *)piece,last_pl,
-        (unsigned char *)shapiece);
-    if(!memcmp(tracker_info->piece_hashes[i],shapiece,20)){
-      //printf("Piece %d verified\n",i);
-      char bitand = 1;
-      bitand = bitand<<7;
-      bitand = bitand>>(i%8);
-      piece_track->bitfield[i/8] |= bitand;
-    }else{
-      //printf("Piece %d not verified\n",i);
-    }
-    //setup bitfield
-  }
-  int havepieces=0;
-  for(i=0;i<tracker_info->num_pieces;i++){
-    char bitand = 1<<7;
-    if(piece_track->bitfield[i/8] & bitand>>(i%8)){
-      if(!havepieces) printf("Have pieces: %d",i);
-      else printf(", %d",i);
-      havepieces++;
-    }
-  }
-  if(havepieces)printf("\n");
-  printf("Have %d of %d pieces, download %d%% completed\n",
-      havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces);
+    if(havepieces)printf("\n");
+    printf("Have %d of %d pieces, download %d%% completed\n",
+        havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces);
   }
 
   return savefile;
@@ -182,13 +182,13 @@ void __parse_peer(peer_t * peer, char * peer_st){
 
     printf("%d:%s\n",i,word);
     switch(i){
-    case 0://id
-      ip = word;
-      break;
-    case 1://ip
-      port = atoi(word);
-    default:
-      break;
+      case 0://id
+        ip = word;
+        break;
+      case 1://ip
+        port = atoi(word);
+      default:
+        break;
     }
 
   }
@@ -211,7 +211,7 @@ void __parse_peer(peer_t * peer, char * peer_st){
 
   //build the object we need
   init_peer(peer, id, ip, port);
-  
+
   //free extra memory
   free(parse_str);
 
@@ -234,12 +234,12 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
 
   /* set the default args */
   bt_args->verbose=0; //no verbosity
-  
+
   //null save_file, log_file and torrent_file
   memset(bt_args->save_file,0x00,FILE_NAME_MAX);
   memset(bt_args->torrent_file,0x00,FILE_NAME_MAX);
   memset(bt_args->log_file,0x00,FILE_NAME_MAX);
-  
+
   //null out file pointers
   bt_args->f_save = NULL;
 
@@ -248,57 +248,57 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
 
   //default lag file
   strncpy(bt_args->log_file,"bt-client.log",FILE_NAME_MAX);
-  
+
   for(i=0;i<MAX_CONNECTIONS;i++){
     bt_args->peers[i] = NULL; //initially NULL
   }
 
   bt_args->port = 0;
   bt_args->id = 0;
-  
+
   while ((ch = getopt(argc, argv, "hp:s:l:vI:b:")) != -1) {
     switch (ch) {
-    case 'h': //help
-      usage(stdout);
-      exit(0);
-      break;
-    case 'v': //verbose
-      bt_args->verbose = 1;
-      break;
-    case 's': //save file
-      strncpy(bt_args->save_file,optarg,FILE_NAME_MAX);
-      break;
-    case 'l': //log file
-      strncpy(bt_args->log_file,optarg,FILE_NAME_MAX);
-      break;
-    case 'b': //port
-      bt_args->port = atoi(optarg);
-      if(bt_args->port <= 0){
-        fprintf(stderr,"ERROR: Invalid port number\n");
-        exit(1);
-      }
-      break;
-    case 'p': //peer
-      n_peers++;
-      //check if we are going to overflow
-      if(n_peers > MAX_CONNECTIONS){
-        fprintf(stderr,"ERROR: Can only support %d initial peers",MAX_CONNECTIONS);
-        usage(stderr);
-        exit(1);
-      }
+      case 'h': //help
+        usage(stdout);
+        exit(0);
+        break;
+      case 'v': //verbose
+        bt_args->verbose = 1;
+        break;
+      case 's': //save file
+        strncpy(bt_args->save_file,optarg,FILE_NAME_MAX);
+        break;
+      case 'l': //log file
+        strncpy(bt_args->log_file,optarg,FILE_NAME_MAX);
+        break;
+      case 'b': //port
+        bt_args->port = atoi(optarg);
+        if(bt_args->port <= 0){
+          fprintf(stderr,"ERROR: Invalid port number\n");
+          exit(1);
+        }
+        break;
+      case 'p': //peer
+        n_peers++;
+        //check if we are going to overflow
+        if(n_peers > MAX_CONNECTIONS){
+          fprintf(stderr,"ERROR: Can only support %d initial peers",MAX_CONNECTIONS);
+          usage(stderr);
+          exit(1);
+        }
 
-      bt_args->peers[n_peers] = malloc(sizeof(peer_t));
+        bt_args->peers[n_peers] = malloc(sizeof(peer_t));
 
-      //parse peers
-      __parse_peer(bt_args->peers[n_peers], optarg);
-      break;
-    case 'I':
-      bt_args->id = atoi(optarg);
-      break;
-    default:
-      fprintf(stderr,"ERROR: Unknown option '-%c'\n",ch);
-      usage(stdout);
-      exit(1);
+        //parse peers
+        __parse_peer(bt_args->peers[n_peers], optarg);
+        break;
+      case 'I':
+        bt_args->id = atoi(optarg);
+        break;
+      default:
+        fprintf(stderr,"ERROR: Unknown option '-%c'\n",ch);
+        usage(stdout);
+        exit(1);
     }
   }
 
@@ -320,17 +320,17 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
 
 
 void print_args(bt_args_t * bt_args){
-    int i;
-    printf("Args:\n");
-    printf("verbose: %d\n",bt_args -> verbose);
-    printf("save_file: %s\n",bt_args -> save_file);
-    printf("log_file: %s\n",bt_args -> log_file);
-    printf("torrent_file: %s\n", bt_args -> torrent_file);
+  int i;
+  printf("Args:\n");
+  printf("verbose: %d\n",bt_args -> verbose);
+  printf("save_file: %s\n",bt_args -> save_file);
+  printf("log_file: %s\n",bt_args -> log_file);
+  printf("torrent_file: %s\n", bt_args -> torrent_file);
 
-    for(i=0;i<MAX_CONNECTIONS;i++){
-      if(bt_args -> peers[i] != NULL)
-	print_peer(bt_args -> peers[i]);
-    }
+  for(i=0;i<MAX_CONNECTIONS;i++){
+    if(bt_args -> peers[i] != NULL)
+      print_peer(bt_args -> peers[i]);
+  }
 }
 
 
@@ -347,30 +347,30 @@ int parse_bt_info(bt_info_t * out, be_node * node)
     currnode = node -> val.d[i].val;
     if(strcmp(node->val.d[i].key,"announce") == 0)
       strcpy(out->announce,currnode->val.s);
-    
+
     else if(strcmp(node->val.d[i].key,"info") == 0){
-    for (j = 0; currnode->val.d[j].val; ++j) {
+      for (j = 0; currnode->val.d[j].val; ++j) {
         infonode = currnode -> val.d[j].val;
-	
-	if(strcmp(currnode->val.d[j].key,"name") == 0)
-	  strcpy(out->name,infonode->val.s);
-	else if(strcmp(currnode->val.d[j].key,"length") == 0)
-	  out->length = infonode->val.i;
-	else if(strcmp(currnode->val.d[j].key,"piece length") == 0)        {
-	  out->piece_length = infonode->val.i;
-	  // once we have the total length and piece length
-	  // we can find the number of pieces req'd
-	  out -> num_pieces = (out->length)/(out-> piece_length);
-	  // handle partial pieces
-	  if (out->length%out->piece_length > 0)
-	   out -> num_pieces++; 
-	}
-	
-	else if(strcmp(currnode->val.d[j].key,"pieces") == 0)
-	{
-	  // here we malloc the pieces_hash buffer based
-	  // on the number of pieces we have
-	  out -> piece_hashes = (char **)malloc(out->num_pieces*sizeof(char *));
+
+        if(strcmp(currnode->val.d[j].key,"name") == 0)
+          strcpy(out->name,infonode->val.s);
+        else if(strcmp(currnode->val.d[j].key,"length") == 0)
+          out->length = infonode->val.i;
+        else if(strcmp(currnode->val.d[j].key,"piece length") == 0)        {
+          out->piece_length = infonode->val.i;
+          // once we have the total length and piece length
+          // we can find the number of pieces req'd
+          out -> num_pieces = (out->length)/(out-> piece_length);
+          // handle partial pieces
+          if (out->length%out->piece_length > 0)
+            out -> num_pieces++; 
+        }
+
+        else if(strcmp(currnode->val.d[j].key,"pieces") == 0)
+        {
+          // here we malloc the pieces_hash buffer based
+          // on the number of pieces we have
+          out -> piece_hashes = (char **)malloc(out->num_pieces*sizeof(char *));
           int k;
           for(k=0;k<out->num_pieces;k++){//malloc a sha1 per piece
             out->piece_hashes[k] = (char *)malloc(20);
@@ -391,8 +391,8 @@ int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
     perror("Read Handshake Failed");
     return 1;
   }
-  
-  
+
+
   if(read_size != 68){
     printf("Incorrect handshake size received: %d\n",read_size);
     //continue;
@@ -426,33 +426,33 @@ int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
 int connect_to_peer(peer_t * peer, char * sha1, char * h_message, 
     char * rh_message, int * sfd){
 
-      printf("Attempting connection with peer %s on port %d\n",
-          inet_ntoa(peer->sockaddr.sin_addr),
-          peer->port);
+  printf("Attempting connection with peer %s on port %d\n",
+      inet_ntoa(peer->sockaddr.sin_addr),
+      peer->port);
 
-      // Create socket to handle peer
-      int peer_sock_fd;
-      peer_sock_fd = socket(AF_INET, SOCK_STREAM, 0); 
-      get_peer_handshake(peer,sha1,h_message);
+  // Create socket to handle peer
+  int peer_sock_fd;
+  peer_sock_fd = socket(AF_INET, SOCK_STREAM, 0); 
+  get_peer_handshake(peer,sha1,h_message);
 
-      // Connect to socket A Priori
-      if(connect(
-            peer_sock_fd, 
-            (const struct sockaddr*) &(peer -> sockaddr), 
-            sizeof(peer -> sockaddr))
-          < 0 ){
-        perror("Connection failed");
-        return 1;
-      }
+  // Connect to socket A Priori
+  if(connect(
+        peer_sock_fd, 
+        (const struct sockaddr*) &(peer -> sockaddr), 
+        sizeof(peer -> sockaddr))
+      < 0 ){
+    perror("Connection failed");
+    return 1;
+  }
 
 
-      int sent = send(peer_sock_fd,h_message,68,0);
-      if(sent != 68){//should be 68...
-        fprintf(stderr,"handshake send error, returned %d\n",sent);
-      } 
-      printf("Sent handshake\n");
-      *sfd = peer_sock_fd;
-      return read_handshake(peer_sock_fd,rh_message,h_message);
+  int sent = send(peer_sock_fd,h_message,68,0);
+  if(sent != 68){//should be 68...
+    fprintf(stderr,"handshake send error, returned %d\n",sent);
+  } 
+  printf("Sent handshake\n");
+  *sfd = peer_sock_fd;
+  return read_handshake(peer_sock_fd,rh_message,h_message);
 }
 
 
