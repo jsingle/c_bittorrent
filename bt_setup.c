@@ -11,11 +11,45 @@
 
 #include <openssl/sha.h>
 
+// sorry bro
+extern bt_args_t bt_args;
+extern log_info logger;
 
 
+void setup_peer_bitfields(char * sha1,piece_tracker * piece_track,char * h_message,char * rh_message){
+  int i;
+  // Connect to peer
+  peer_t * peer;
+  for(i=0;i<MAX_CONNECTIONS;i++){  
+    if(bt_args.peers[i] != NULL){
+      //setup peer btfields
+      peer = bt_args.peers[i];
+      peer->btfield = malloc(piece_track->size); // FREE'D
+      bzero(peer->btfield,piece_track->size);
+      log_record("HANDSHAKE INIT peer:%s port:%d id:%20s\n",
+          inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
+
+      int * sfd = &(bt_args.sockets[i]);
 
 
+      if(connect_to_peer(peer, sha1, h_message, rh_message, sfd)){
 
+
+        log_record("HANDSHAKE FAILED peer:%s port:%d id:%20s\n",
+            inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
+
+        free(bt_args.peers[i]);
+        bt_args.peers[i] = NULL;
+      }else{
+        log_record("HANDSHAKE SUCCESS peer:%s port:%d id:%20s\n",
+            inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
+        send_bitfield(bt_args.sockets[i],piece_track,peer,&logger);
+      }
+    }
+  }
+
+
+}
 
 
 
@@ -384,6 +418,15 @@ int parse_bt_info(bt_info_t * out, be_node * node)
 }
 
 
+void print_hmessage(char * h_message){
+  int x;
+  for(x=0;x<68;++x){
+    if ( x < 1) printf("%d",h_message[x]);
+    else if ( x < 20) printf("%c",h_message[x]);
+    else printf("%X",h_message[x]);
+  }
+  printf("\n");
+}
 
 int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
   int read_size = read(peer_sock_fd,rh_message,68);
@@ -399,19 +442,15 @@ int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
     return 1;
   }
 
+  print_hmessage(h_message);
   //TODO: compare full handshake, need our IP
   if(memcmp(h_message,rh_message,48)){ //don't match
     printf("Handshake attempted, no match, closing connection: %s\n",rh_message);
-    int x;
     printf("hmessage:\n");
-    for(x=0;x<68;++x){
-      printf("%d ",h_message[x]);
-    }
-    printf("\nrhmessage:\n");
-    for(x=0;x<68;++x){
-      printf("%d ",rh_message[x]);
-    }
-    printf("\n");
+    print_hmessage(h_message);
+    printf("rhmessage:\n");
+    print_hmessage(rh_message);
+
     close(peer_sock_fd);
     return 1;
   }else {  //handshake match

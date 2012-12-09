@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <arpa/inet.h> //internet address library
@@ -11,11 +12,13 @@
 
 #include <openssl/sha.h> //hashing pieces
 
+#include <stdarg.h> // for our logging function
+
 #include "bencode.h"
 #include "bt_lib.h"
 #include "bt_setup.h"
 
-
+extern log_info logger;
 
 void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info){
 
@@ -87,17 +90,15 @@ int is_interested(piece_tracker * piecetrack,
       if(!(piecetrack->bitfield[i] & a) && (peer->btfield[i] & a)){
         sent = send_interested(fd,1);//interested
         if(sent){
-          log->len = snprintf(log->logmsg,100,
-              "MESSAGE INTERESTED TO peer:%s FAILED\n",
+          log_record("MESSAGE INTERESTED TO peer:%s FAILED\n",
               peer->id);
         }
         else{
-          log->len = snprintf(log->logmsg,100,
-              "MESSAGE INTERESTED TO peer:%s\n",
+          log_record("MESSAGE INTERESTED TO peer:%s\n",
               peer->id);
         }
         peer->interested = 1;
-        log_write(log);
+
         return 1;
       }
       a = a>>1;
@@ -106,17 +107,14 @@ int is_interested(piece_tracker * piecetrack,
 
   sent = send_interested(fd,0);//not interested
   if(sent){
-    log->len = snprintf(log->logmsg,100,
-        "MESSAGE NOT INTERESTED TO peer:%s FAILED\n",
+    log_record("MESSAGE NOT INTERESTED TO peer:%s FAILED\n",
         peer->id);
   }
   else{
-    log->len = snprintf(log->logmsg,100,
-        "MESSAGE NOT INTERESTED TO peer:%s\n",
+    log_record("MESSAGE NOT INTERESTED TO peer:%s\n",
         peer->id);
   }
   peer->interested = 0;
-  log_write(log);
   return 0;
 }
 
@@ -158,15 +156,12 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
 
         sent = send_request(fd,&btrequest);
         if(sent){
-          log->len = snprintf(log->logmsg,100,
-              "MESSAGE REQUEST TO peer:%s index:%i FAILED\n",
+          log_record("MESSAGE REQUEST TO peer:%s index:%i FAILED\n",
               peer->id,(int)index);
         }else{
-          log->len = snprintf(log->logmsg,100,
-              "MESSAGE REQUEST TO peer:%s index:%i begin:%i len:%i\n",
+          log_record("MESSAGE REQUEST TO peer:%s index:%i begin:%i len:%i\n",
               peer->id,(int)index,btrequest.begin,btrequest.length);
         }
-        log_write(log);
         return sent;
       }
       a = a>>1;
@@ -174,13 +169,11 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
   }
   sent = send_interested(fd,0);//not interested
   if(sent){
-    log->len = snprintf(log->logmsg,100,
-        "MESSAGE NOT INTERESTED TO peer:%s FAILED\n",
+    log_record("MESSAGE NOT INTERESTED TO peer:%s FAILED\n",
         peer->id);
   }
   else{
-    log->len = snprintf(log->logmsg,100,
-        "MESSAGE NOT INTERESTED TO peer:%s\n",
+    log_record("MESSAGE NOT INTERESTED TO peer:%s\n",
         peer->id);
   }
   peer->interested = 0;
@@ -227,36 +220,32 @@ int send_bitfield(
       bitfield_msg->length,sent);
 
   if(sent == sizeof(int) + bitfield_msg->length){
-    log->len=snprintf(log->logmsg,100,
-        "MESSAGE BITFIELD TO peer:%s bfield:%s\n",
+    log_record("MESSAGE BITFIELD TO peer:%s bfield:%s\n",
         peer->id,piece_track->bitfield);
   }else{
-    log->len=snprintf(log->logmsg,100,
-        "MESSAGE BITFIELD to peer:%s FAILED\n",peer->id);
+    log_record("MESSAGE BITFIELD to peer:%s FAILED\n",peer->id);
   }
-  log_write(log);
   return sent;
 
 }
 
 
-
-int log_write(log_info * log){
+void log_record( const char* format, ... ) {
   float ms;
-  char time[10];
-  int time_len;
-  gettimeofday(&(log->cur_tv),NULL);
-  ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
-  ms += ((float)log->cur_tv.tv_usec - (float)log->start_tv.tv_usec)/1000;
-  time_len = snprintf(time,10,"%.2f ",ms);
-  int fw = fwrite(time,time_len,1,log->log_file);
-  fw = fwrite(log->logmsg,log->len,1,log->log_file);
-  fflush(log->log_file);
-  return fw;
+  gettimeofday(&(logger.cur_tv),NULL);
+
+  ms = (logger.cur_tv.tv_sec - logger.start_tv.tv_sec)*1000;
+  ms += ((float)logger.cur_tv.tv_usec - (float)logger.start_tv.tv_usec)/1000;
+
+  va_list args;
+  fprintf(logger.log_file,"[%6.2f]  ",ms);//,time_len,1,log->log_file);
+  va_start( args, format );
+  vfprintf( logger.log_file, format, args );
+  va_end( args );
+  fprintf(logger.log_file, "\n" );
+
+  fflush(logger.log_file);
 }
-
-
-
 
 void calc_id(char * ip, unsigned short port, char *id){
   char data[256];
@@ -296,8 +285,9 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
   if(client_fd == -1){
     perror("Accept New Peer Failed");
-    log->len = snprintf(log->logmsg,100,"HANDSHAKE FAILED accept failed\n");
-    log_write(log);
+
+    log_record("HANDSHAKE FAILED accept failed\n");
+
 
     return 1;
   }
@@ -325,9 +315,9 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
   if(rh_ret){   //read failed
     printf("READ HANDSHAKE failed\n");
-    log->len = snprintf(log->logmsg,100,"HANDSHAKE FAILED peer:%s port:%d id:i%20s\n",
+    log_record("HANDSHAKE FAILED peer:%s port:%d id:%X\n",
         ip,port,id);
-    log_write(log);
+
 
     return 1;
   }
@@ -337,9 +327,8 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   if(sent != H_MSG_LEN){
     //should be 68...
     fprintf(stderr,"Handshake wasn't sent correctly, returned %d\n",sent);
-    log->len = snprintf(log->logmsg,100,"HANDSHAKE SEND FAILED peer:%s port:%d id:%20s\n",
+    log_record("HANDSHAKE SEND FAILED peer:%s port:%d id:%X\n",
         ip,port,id);
-    log_write(log);
     return 1;
   }   
 
@@ -353,9 +342,8 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
   init_peer(peer, id, ip, port);
   *newfd = client_fd;
-  log->len = snprintf(log->logmsg,100,"HANDSHAKE SUCCESS peer:%s port:%d id:%20s\n",
+  log_record("HANDSHAKE SUCCESS peer:%s port:%d id:%X\n",
       inet_ntoa(peer->sockaddr.sin_addr),peer->port,id);
-  log_write(log);
   return 0;
 }
 

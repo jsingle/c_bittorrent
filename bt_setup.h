@@ -9,6 +9,7 @@
 #include "bt_lib.h"
 #include "bencode.h"
 
+
 /**
  * __parse_peer(peer_t * peer, char peer_st) -> void
  *
@@ -32,6 +33,8 @@ void usage(FILE * file);
 void parse_args(bt_args_t * bt_args, int argc,  char ** argv);
 
 void print_args(bt_args_t * bt_args);
+
+void setup_peer_bitfields(char * sha1, piece_tracker * piece_track, char * h_message, char * rh_message);
 
 /**
  * if peers are specified, try to connect to them

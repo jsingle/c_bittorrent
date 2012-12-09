@@ -175,6 +175,7 @@ int send_have(int fd,int have);
 
 int log_write(log_info * log);
 
+void log_record(const char * format, ... );
 
 int parse_bt_info(bt_info_t * bt_info, be_node * node);
 
