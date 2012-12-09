@@ -65,6 +65,7 @@ FILE * process_savefile(bt_args_t * bt_args,
     for(i=0;i<tracker_info->num_pieces-1;i++){
       sread = fread(piece,1,tracker_info->piece_length,savefile);
       if(sread != tracker_info->piece_length){
+       //TODO:fix 
         printf("problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
             sread, tracker_info->piece_length,ftell(savefile));
       }

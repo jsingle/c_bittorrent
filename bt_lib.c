@@ -15,11 +15,36 @@
 #include "bt_lib.h"
 #include "bt_setup.h"
 
+
+
+void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info){
+
+  int i;
+  int havepieces=0;
+  for(i=0;i<tracker_info->num_pieces;i++){
+    char bitand = 1<<7;
+    if(piece_track->bitfield[i/8] & bitand>>(i%8)){
+      if(!havepieces) printf("Have pieces: %d",i);
+      else printf(", %d",i);
+      havepieces++;
+    }
+  }
+  if(havepieces)printf("\n");
+  printf("Have %d of %d pieces, download %d%% completed\n",
+      havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces);
+  if(havepieces == tracker_info->num_pieces)
+    printf("Download Complete!\n");
+
+}
+
+
+
+
 int send_request(int fd, bt_request_t * btrequest){
   bt_msg_t bitfield_msg;
-  bitfield_msg.length = 1+sizeof(bt_request_t);
+  bitfield_msg.length = 1+3 +sizeof(bt_request_t);
   bitfield_msg.bt_type = BT_REQUEST;
-  memcpy(&(bitfield_msg.payload.request),btrequest, sizeof(btrequest));
+  memcpy(&(bitfield_msg.payload.request),btrequest, sizeof(bt_request_t));
   
   int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
   if(sent == bitfield_msg.length + sizeof(int)){
@@ -115,7 +140,6 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
         //TODO: mabye choose a random section to request, not go serially?
         
         btrequest.begin = piecetrack->recvd_pos[index];
-        printf("request index: %d\n",index);
         btrequest.index = index;
         if(piecetrack->recv_size < (piecetrack->piece_size
               - piecetrack->recvd_pos[index])){
@@ -124,6 +148,13 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
         else{
           btrequest.length=piecetrack->piece_size-piecetrack->recvd_pos[index];
         }
+        
+        //deal with last piece scenario
+        if(index==piecetrack->last_piece){
+          if(btrequest.length > piecetrack->lp_size)
+            btrequest.length = piecetrack->lp_size;
+        }
+
         sent = send_request(fd,&btrequest);
         if(sent){
           log->len = snprintf(log->logmsg,100,
@@ -162,8 +193,8 @@ int send_have(int fd, int have){
   bitfield_msg.bt_type = BT_HAVE;
   bitfield_msg.payload.have = have;
   int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
-  printf("Have %d sent!  Msg len: %3d, Sent Size %3d\n",
-      bitfield_msg.payload.have,bitfield_msg.length,sent);
+  printf("Have %d sent!\n",
+      bitfield_msg.payload.have);
   return sent;
 }
 
@@ -175,8 +206,22 @@ int send_bitfield(
 {
   bt_msg_t * bitfield_msg = (bt_msg_t *)(piece_track->msg);
   bitfield_msg->bt_type = BT_BITFILED;
-  bitfield_msg->length =  1 + sizeof(size_t) + piece_track->size;
-  bitfield_msg->payload.bitfiled.size = piece_track->size;
+  bitfield_msg->length =  1 + sizeof(size_t) +3 + piece_track->size;
+  bitfield_msg->payload.bitfiled.size = (size_t)piece_track->size;
+
+  /*
+  printf("msg:%d type:%d length:%d bfiled:%d\n",
+      bitfield_msg,&(bitfield_msg->bt_type),&(bitfield_msg->length),
+      &(bitfield_msg->payload.bitfiled));
+  printf("bf: pt:%d send:%d\n",
+      piece_track->bitfield,bitfield_msg->payload.bitfiled.bitfield);
+ 
+
+  printf("sending bitfield: %c\n",piece_track->bitfield[0]);
+  printf("sending bitfield: %c\n",bitfield_msg->payload.bitfiled.bitfield[0]);
+*/
+
+
   int sent = send(new_client_sockfd,bitfield_msg,
       sizeof(int) + bitfield_msg->length,0);
   printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",

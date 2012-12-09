@@ -123,6 +123,8 @@ typedef struct{
   size_t size;
   char * msg;
   char* bitfield;
+  size_t last_piece;
+  size_t lp_size;
 } piece_tracker;
 
 
@@ -237,5 +239,8 @@ void get_peer_handshake(peer_t * p, char * sha1, char * h_message);
 int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * rh_message, int * newfd, log_info * log, peer_t* peer);
 
 int make_bitfield_msg();
+
+void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info);
+
 
 #endif

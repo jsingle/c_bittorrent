@@ -26,13 +26,13 @@ bt_args_t bt_args;
 
 //prints final ping stats before exiting
 void int_handler(int signum){
-int i;
-for(i=0;i<MAX_CONNECTIONS;i++)  
+  int i;
+  for(i=0;i<MAX_CONNECTIONS;i++)  
     close(bt_args.sockets[i]);
 
-printf("GOODBYE\n");
+  printf("GOODBYE\n");
 
-exit(1);
+  exit(1);
 }
 
 int main (int argc, char * argv[]){
@@ -41,7 +41,6 @@ int main (int argc, char * argv[]){
   struct timeval tv;
   char h_message[H_MSG_LEN];
   char rh_message[H_MSG_LEN];
-  char buf[BUF_LEN];
 
   //used for logging in main loop
   char msg[25];
@@ -75,16 +74,21 @@ int main (int argc, char * argv[]){
   if(bt_args.verbose) be_dump(node);
   bt_info_t tracker_info;
   parse_bt_info(&tracker_info,node); 
-  
-  
-  
+
+
   //setup bitfield, piece tracking
   piece_tracker piece_track;
   piece_track.size = tracker_info.num_pieces/8 +1;
-  piece_track.msg = (char *)malloc(piece_track.size + sizeof(int)+ 1 + sizeof(size_t));
+  piece_track.msg = (char *)malloc(piece_track.size + 
+      sizeof(int)+ 1 + sizeof(size_t) + 3);
+
+  piece_track.last_piece = tracker_info.num_pieces-1;
+  piece_track.lp_size = tracker_info.length - 
+    (tracker_info.num_pieces-1)*tracker_info.piece_length;
+
   //bt_msg length + bt_msg bt_type + bitfield size
-  piece_track.bitfield = piece_track.msg+sizeof(int)+1 +sizeof(size_t);
-  bzero(piece_track.msg,piece_track.size + sizeof(size_t) + 1);
+  piece_track.bitfield = piece_track.msg+sizeof(int)+1 +sizeof(size_t)+3;
+  bzero(piece_track.msg,piece_track.size + sizeof(size_t) + 1 +3 +sizeof(int));
   printf("Bitfield created with length: %d\n",(int)piece_track.size);
   if(tracker_info.piece_length>32768){ //2^15
     piece_track.recv_size = 32768;
@@ -94,20 +98,22 @@ int main (int argc, char * argv[]){
   piece_track.recvd_pos = (unsigned long int *)
     malloc(sizeof(unsigned long int)*tracker_info.num_pieces);
 
-
+  bzero(piece_track.recvd_pos,
+      sizeof(unsigned long int)*tracker_info.num_pieces);
 
   //deal with savefile
   FILE * savefile = process_savefile(&bt_args,&tracker_info,&piece_track);
-  
+
+
 
   //TODO fix sha1
   char * sha1;
   sha1 = tracker_info.name;
 
- 
-  
+
+
   // TODO parse data file, create bitfield for restart
- 
+
 
 
 
@@ -155,6 +161,7 @@ int main (int argc, char * argv[]){
   while(1){
     //TODO: need to handle clients closing connections
     //also clients need to handle server closing connections
+    //TODO: still getting connection refused on restart
     int peerpos=-1,j;
     memcpy(&tempset, &readset, sizeof(tempset));
     tv.tv_sec = 30;
@@ -173,7 +180,7 @@ int main (int argc, char * argv[]){
         if (FD_ISSET(i, &tempset)) {
           if(i == incoming_sockfd){
             //there is new client trying to connect
-            
+
 
             int new_client_sockfd;
             //find first available peer slot
@@ -211,11 +218,15 @@ int main (int argc, char * argv[]){
           }
           else { 
             // otherwise someone else is sending us something
-            
-            
+
+
             int message_len;
             int read_msglen = read(i,&message_len,sizeof(int));
             if(!message_len || !read_msglen) continue;
+            if(read_msglen == -1){
+              perror("Read msg failed");
+              continue;
+            }
             printf("received %d from file descripter : %d\n",read_msglen,i); 
 
             // find the peer in the list
@@ -237,7 +248,7 @@ int main (int argc, char * argv[]){
 
             printf("READ: %3d \t BT_TYPE : %d \n",how_much,bt_type);
             if (!how_much){
-              printf("READ FAILED");
+              printf("READ FAILED\n");
               //exit(1);
             }
             // switch on type of bt_message and handle accordingly
@@ -296,17 +307,19 @@ int main (int argc, char * argv[]){
                 break;
               case BT_BITFILED: //bitfield
                 //printf("want bfield size of: %d for bfield\n",(int)bfield.size);
-                
+                //read 3 padding bytes from bt_msg_t struct
+                read_size = read(i,&bfsize,3);
                 //read bitfield size
                 read_size = read(i,&bfsize,sizeof(size_t));
                 //TODO: unexpected size
-                if(bfsize != piece_track.size)
+                if(bfsize != (size_t)piece_track.size)
                   printf("warning: unexpected bitfield size!!! %d %d\n",
-                      bfsize,piece_track.size);
-                
+                      (int)bfsize,(int)piece_track.size);
+
                 //read bitfield
                 read_size = read(i,peer -> btfield,piece_track.size);
-                printf("bitfield received\n");
+                printf("bitfield received length %d char %c\n",
+                    read_size,peer->btfield[0]);
 
                 strcpy(msg,"MESSAGE BITFIELD FROM");
                 snprintf(msginfo,piece_track.size + 9,"bitfield:%s",
@@ -326,6 +339,7 @@ int main (int argc, char * argv[]){
 
                 bt_request_t piece_req;
                 //TODO:handle request struct
+                read_size = read(i,&bfsize,3);//read padding
                 read_size = read(i,&piece_req,sizeof(bt_request_t));
                 printf("request received\n");
                 printf("request index: %d\n",piece_req.index); 
@@ -339,17 +353,17 @@ int main (int argc, char * argv[]){
                 // check if we have it
                 if ( (piece_track.bitfield[piece_req.index/8]) & bhave ){
                   //if we have it
-                  
+
                   // message
                   bt_msg_t * req_piece_msg = (bt_msg_t *) 
                     malloc(/*bt msg */ sizeof(int) + 
-                        sizeof(unsigned char) + 
+                        sizeof(unsigned char) + 3 + 
                         /* bt_piece_t */ + 2*sizeof(int) + 
                         /*data */ SUBPIECE_LEN );
-                  req_piece_msg -> length = sizeof(unsigned char) + 
+                  req_piece_msg -> length = sizeof(unsigned char) +3+
                     /* bt_piece_t */ + 2*sizeof(int) + 
-                    /*data */ SUBPIECE_LEN;
-                  
+                    /*data */ piece_req.length;
+
                   req_piece_msg -> bt_type = BT_PIECE; 
 
                   // piece
@@ -357,17 +371,32 @@ int main (int argc, char * argv[]){
                   requested -> index = piece_req.index;
                   requested -> begin = piece_req.begin;
 
+                  /*
+                     if(tracker_info.length < (piece_req.index)*
+                     tracker_info.piece_length+piece_req.begin + piece_req){
+                     }*/
+
+
                   // load the appro piece
                   //read_size = load_piece_from_file(save_file,&requested);
                   fseek(savefile,(piece_req.index)*tracker_info.piece_length+piece_req.begin, SEEK_SET);
                   // read into bt_piece_t
-                  fread(&(requested -> piece),1,SUBPIECE_LEN,savefile);
+                  fread(&(requested -> piece),1,piece_req.length,savefile);
                   // send the message to the peer
-                  int sent = send(bt_args.sockets[i],req_piece_msg,
+                  int sent = send(i,req_piece_msg,
                       sizeof(int) + req_piece_msg->length,0);
 
+                  if(sent == -1){
+                    perror("send piece error");
+                  }
                   printf("Piece sent!  Msg len: %3d, Sent Size %3d\n",
-      req_piece_msg->length,sent);
+                      req_piece_msg->length,sent);
+                  strcpy(msg,"MESSAGE PIECE TO");
+                  snprintf(msginfo,50,"index:%d begin:%d",requested->index,
+                      requested->begin);
+                  log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
+                      msg,bt_args.peers[peerpos]->id,msginfo);
+                  log_write(&log);
                 }else{
                   // if we don't have it
                   strcpy(msg,"DON'T HAVE PIECE");
@@ -378,31 +407,157 @@ int main (int argc, char * argv[]){
 
 
                 }
-                
+
                 //send section
                 break; 
               case BT_PIECE: //piece
                 printf("bt_piece received\n");
-                read_size = read(i,peer->btfield,message_len - sizeof(bt_type));
+                read_size = read(i,&bfsize,3);
+                bt_piece_t recv_piece;
+                int data_len = message_len-sizeof(bt_type)-3-sizeof(int)*2;
+                int have_read = 0;
+                char * recv_data = (char *)malloc(data_len);
+                read_size = read(i,&recv_piece,sizeof(int)*2);
+                while(have_read<data_len){
+                  read_size = read(i,recv_data+have_read,data_len-have_read);
+                  have_read+=read_size;
+                }
+                if(have_read != data_len){
+                  printf("piece read error!! size %d doesnt match expected %d\n",
+                      read_size,data_len);
+                }
+
                 strcpy(msg,"MESSAGE PIECE FROM");
                 // parse out piece number
-                
 
-                // verify if you have it
-                
-                // grab that shit from the file
-                
-                // trigger piece send
-                
-                //TODO: log
-                //snprintf(msginfo,50,"bitfield:%s",buf);
-                strcpy(msginfo,"");
-                log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
-                    msg,bt_args.peers[peerpos]->id,msginfo);
+
+                if(piece_track.recvd_pos[recv_piece.index] == recv_piece.begin){
+                  //good to go, offset matches what we currently have
+
+                  if(recv_piece.begin + data_len > tracker_info.piece_length){
+                    printf("data received exceeds remaining piece size!\n");
+                    data_len = tracker_info.piece_length - recv_piece.begin;
+                  }
+                  if(recv_piece.index*tracker_info.piece_length+recv_piece.begin
+                      > tracker_info.length){
+                    printf("data received exceeds end of file!!\n");
+                  }
+                  fseek(savefile,recv_piece.index*tracker_info.piece_length + 
+                      recv_piece.begin,SEEK_SET);
+                  read_size=fwrite(recv_data,1,data_len,savefile);
+                  snprintf(msginfo,50,"wrote:%d",read_size);
+                  piece_track.recvd_pos[recv_piece.index] += read_size;
+                  if(piece_track.recvd_pos[recv_piece.index] > 
+                      tracker_info.piece_length){
+                    printf("something went wrong, wrote past piece size\n");
+                  }
+
+                }
+                else if(piece_track.recvd_pos[recv_piece.index] <
+                    recv_piece.begin + data_len
+                    && piece_track.recvd_pos[recv_piece.index]>recv_piece.begin)
+                {
+                  //we can read some data
+
+                  data_len -= (piece_track.recvd_pos[recv_piece.index]-
+                      recv_piece.begin);
+
+                  if(piece_track.recvd_pos[recv_piece.index] + 
+                      data_len > tracker_info.piece_length){
+                    printf("data received exceeds remaining piece size!\n");
+                    data_len = tracker_info.piece_length - 
+                      piece_track.recvd_pos[recv_piece.index];
+                  }
+
+                  if(recv_piece.index*tracker_info.piece_length+recv_piece.begin
+                      > tracker_info.length){
+                    printf("data received exceeds end of file!!\n");
+                  }
+
+                  fseek(savefile,recv_piece.index*tracker_info.piece_length + 
+                      piece_track.recvd_pos[recv_piece.index],SEEK_SET);
+
+                  read_size=fwrite(recv_data + 
+                      (piece_track.recvd_pos[recv_piece.index]-recv_piece.begin)
+                      ,1,data_len,savefile);
+                  snprintf(msginfo,50,"wrote:%d",read_size);
+                  piece_track.recvd_pos[recv_piece.index] += read_size;
+                  if(piece_track.recvd_pos[recv_piece.index] > 
+                      tracker_info.piece_length){
+                    printf("something went wrong, wrote past piece size\n");
+                  }
+
+                }else{
+                  //unusable data
+                  printf("received unusable (redundant) data\n");
+                  snprintf(msginfo,50,"redundant");
+                } 
+                log.len = snprintf(log.logmsg,100,"%s id:%s %s new_rpos:%ld\n",
+                    msg,bt_args.peers[peerpos]->id,msginfo,
+                    piece_track.recvd_pos[recv_piece.index]);
                 log_write(&log);
-                //TODO:store piece
-                //if fills block, sha1 & verify
-                //then have
+
+
+                if(piece_track.recvd_pos[recv_piece.index]==
+                    tracker_info.piece_length){
+                  //fills block, so sha1 & verify
+                  char * piecesha = malloc(20);
+                  char * vpiece = malloc(tracker_info.piece_length);
+                  fseek(savefile,recv_piece.index*tracker_info.piece_length,
+                      SEEK_SET);
+                  read_size=fread(vpiece,1,tracker_info.piece_length,
+                      savefile);
+                  SHA1((unsigned char *)vpiece,tracker_info.piece_length,
+                      (unsigned char *)piecesha);
+                  if(!memcmp(tracker_info.piece_hashes[recv_piece.index],
+                        piecesha,20)){
+                    printf("Verified downloaded piece %d\n",recv_piece.index);
+                    log.len = snprintf(log.logmsg,100,"VERIFIED PIECE %d",
+                        recv_piece.index);
+                    log_write(&log);
+
+                    char bitand = 1<<7;
+                    bitand = bitand>>(recv_piece.index%8);
+                    piece_track.bitfield[recv_piece.index/8] |= bitand;
+                    test_progress(&piece_track,&tracker_info);
+                    send_have(i,recv_piece.index);
+                  }else{
+                    printf("Verify of piece %d failed!\n",recv_piece.index);
+                    piece_track.recvd_pos[recv_piece.index] = 0;
+                  }
+                }
+
+                //last piece scenario
+                if(recv_piece.index == piece_track.last_piece){
+                  if(piece_track.recvd_pos[recv_piece.index] == 
+                      piece_track.lp_size){
+                    char * piecesha = malloc(20);
+                    char * vpiece = malloc(piece_track.lp_size);
+                    fseek(savefile,recv_piece.index*tracker_info.piece_length,
+                        SEEK_SET);
+                    read_size=fread(vpiece,1,piece_track.lp_size,
+                        savefile);
+                    SHA1((unsigned char *)vpiece,piece_track.lp_size,
+                        (unsigned char *)piecesha);
+                    if(!memcmp(tracker_info.piece_hashes[recv_piece.index],
+                          piecesha,20)){
+                      printf("Verified downloaded piece %d\n",recv_piece.index);
+                      log.len = snprintf(log.logmsg,100,"VERIFIED PIECE %d",
+                          recv_piece.index);
+                      log_write(&log);
+
+                      char bitand = 1<<7;
+                      bitand = bitand>>(recv_piece.index%8);
+                      piece_track.bitfield[recv_piece.index/8] |= bitand;
+                      test_progress(&piece_track,&tracker_info);
+                      send_have(i,recv_piece.index);
+                    }else{
+                      printf("Verify of piece %d failed!\n",recv_piece.index);
+                      piece_track.recvd_pos[recv_piece.index] = 0;
+                    }
+                  }
+                }
+
                 if(is_interested(&piece_track,peer,i,&log))
                   proc_b = process_bitfield(&piece_track,peer,i,&log);
                 break;
@@ -413,6 +568,10 @@ int main (int argc, char * argv[]){
                     msg,bt_args.peers[peerpos]->id,msginfo);
                 log_write(&log);
                 //TODO: cancel
+                break;
+              default:
+                printf("unexpected btmsg value received\n");
+                exit(1);
                 break;
             }
           }
