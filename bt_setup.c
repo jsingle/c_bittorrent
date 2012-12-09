@@ -43,15 +43,24 @@ FILE * process_savefile(bt_args_t * bt_args,
       perror("Opening savefile failed");
       exit(1);
     }
+    fseek(savefile,0L,SEEK_END);
+    int file_l = ftell(savefile);
+    fseek(savefile,0L,SEEK_SET);
+      //make file bigger
+      fseek(savefile,tracker_info->length-1,SEEK_SET);
+      fwrite("x",1,1,savefile);//writes to ensure proper length
+      file_l = ftell(savefile);
+      printf("file size set: %d\n",file_l);
   }else{
-    printf("Reading and checing existing savefile \"%s\"\n",t_file_name);
+    printf("Reading and checking existing savefile \"%s\"\n",t_file_name);
     fseek(savefile,0L,SEEK_END);
     int file_l = ftell(savefile);
     printf("file size: %d\n",file_l);
     fseek(savefile,0L,SEEK_SET);
     if(file_l < tracker_info->length){
       //make file bigger
-      fseek(savefile,tracker_info->length,SEEK_SET);
+      fseek(savefile,tracker_info->length-1,SEEK_SET);
+      fwrite("x",1,1,savefile);//writes to ensure proper length
       file_l = ftell(savefile);
       printf("file size set: %d\n",file_l);
     }else{//only try to verify files that are long enough
@@ -65,7 +74,6 @@ FILE * process_savefile(bt_args_t * bt_args,
     for(i=0;i<tracker_info->num_pieces-1;i++){
       sread = fread(piece,1,tracker_info->piece_length,savefile);
       if(sread != tracker_info->piece_length){
-       //TODO:fix 
         printf("problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
             sread, tracker_info->piece_length,ftell(savefile));
       }
@@ -104,7 +112,6 @@ FILE * process_savefile(bt_args_t * bt_args,
     }
     //setup bitfield
   }
-  //TODO: print bitfield, progress
   int havepieces=0;
   for(i=0;i<tracker_info->num_pieces;i++){
     char bitand = 1<<7;
@@ -470,6 +477,7 @@ int init_incoming_socket(int port){
       res->ai_addrlen);
 
 
+  //TODO: default port is not working somehow
   fprintf(stderr,"Server bound to socket on socket_fd %d, on port %s\n",
       sockfd,port_str);
 

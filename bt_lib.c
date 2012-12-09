@@ -82,7 +82,7 @@ int is_interested(piece_tracker * piecetrack,
   int i,j;
   int sent;
   for(i=0;i<piecetrack->size;i++){
-    char a = 1<<7;
+    unsigned char a = 0x80;
     for(j=0;j<8;j++){
       if(!(piecetrack->bitfield[i] & a) && (peer->btfield[i] & a)){
         sent = send_interested(fd,1);//interested
@@ -132,6 +132,7 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
   bt_request_t btrequest;
   int sent;
   for(i=0;i<piecetrack->size;i++){
+    
     unsigned char a = 0x80;
     for(j=0;j<8;j++){
       unsigned long int index = 8*i+j;
@@ -186,15 +187,13 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd,log_info
   return 2;
 }
 
-
 int send_have(int fd, int have){
   bt_msg_t bitfield_msg;
   bitfield_msg.length = sizeof(int) + 1;
   bitfield_msg.bt_type = BT_HAVE;
   bitfield_msg.payload.have = have;
   int sent = send(fd,&bitfield_msg,bitfield_msg.length + sizeof(int),0);
-  printf("Have %d sent!\n",
-      bitfield_msg.payload.have);
+  //printf("Have %d sent!\n",bitfield_msg.payload.have);
   return sent;
 }
 
@@ -248,7 +247,7 @@ int log_write(log_info * log){
   int time_len;
   gettimeofday(&(log->cur_tv),NULL);
   ms = (log->cur_tv.tv_sec - log->start_tv.tv_sec)*1000;
-  ms += (log->cur_tv.tv_usec - log->start_tv.tv_usec)/1000;
+  ms += ((float)log->cur_tv.tv_usec - (float)log->start_tv.tv_usec)/1000;
   time_len = snprintf(time,10,"%.2f ",ms);
   int fw = fwrite(time,time_len,1,log->log_file);
   fw = fwrite(log->logmsg,log->len,1,log->log_file);

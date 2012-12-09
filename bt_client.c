@@ -68,9 +68,9 @@ int main (int argc, char * argv[]){
   maxfd = incoming_sockfd;
 
   char * sha1 = malloc(20);//used for handshake
-//TODO: fix sha1
+  //TODO TODO TODO: fix sha1!!
+  //sha1 hash of name field
   bzero(sha1,20);
-
 
   //read and parse the torrent file
   node = load_be_node(bt_args.torrent_file);
@@ -111,9 +111,14 @@ int main (int argc, char * argv[]){
   
   //deal with savefile
   FILE * savefile = process_savefile(&bt_args,&tracker_info,&piece_track);
-  
+
+  //TODO: peer ids in handshake, we need to get our ip
+  //TODO: cleanup printed output
+  //TODO: more code comments? in bt_lib.c
   
   //TODO: connections should initially be choked and uninterested
+  //so we need code to initialize, then unchoke them, etc
+  //TODO: modularize code
   peer_t * peer;
   for(i=0;i<MAX_CONNECTIONS;i++){  
     if(bt_args.peers[i] != NULL){
@@ -121,7 +126,8 @@ int main (int argc, char * argv[]){
       peer = bt_args.peers[i];
       peer->btfield = malloc(piece_track.size);
       bzero(peer->btfield,piece_track.size);
-      log.len = snprintf(log.logmsg,100,"HANDSHAKE INIT peer:%s port:%d id:%20s\n",
+      log.len = snprintf(log.logmsg,100,
+          "HANDSHAKE INIT peer:%s port:%d id:%20s\n",
           inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
       int logwr = log_write(&log);
 
@@ -129,13 +135,15 @@ int main (int argc, char * argv[]){
 
 
       if(connect_to_peer(peer, sha1, h_message, rh_message, sfd)){
-        log.len = snprintf(log.logmsg,100,"HANDSHAKE FAILED peer:%s port:%d id:%20s\n",
+        log.len = snprintf(log.logmsg,100,
+            "HANDSHAKE FAILED peer:%s port:%d id:%20s\n",
             inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
         logwr = log_write(&log);
 
         free(bt_args.peers[i]);
       }else{
-        log.len = snprintf(log.logmsg,100,"HANDSHAKE SUCCESS peer:%s port:%d id:%20s\n",
+        log.len = snprintf(log.logmsg,100,
+            "HANDSHAKE SUCCESS peer:%s port:%d id:%20s\n",
             inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
         logwr = log_write(&log);
         FD_SET(bt_args.sockets[i], &readset); // add to master set
@@ -156,7 +164,8 @@ int main (int argc, char * argv[]){
   while(1){
     //TODO: need to handle clients closing connections
     //also clients need to handle server closing connections
-    //TODO: still getting connection refused on restart
+    //TODO: still getting connection refused on restart (maybe? hasn't happened in a while)
+    //TODO: log clients closing connections, connecting
     int peerpos=-1,j;
     memcpy(&tempset, &readset, sizeof(tempset));
     tv.tv_sec = 30;
@@ -222,7 +231,7 @@ int main (int argc, char * argv[]){
               perror("Read msg failed");
               continue;
             }
-            printf("received %d from file descripter : %d\n",read_msglen,i); 
+            //printf("received %d from file descripter : %d\n",read_msglen,i); 
 
             // find the peer in the list
             peerpos=-1;
@@ -241,7 +250,7 @@ int main (int argc, char * argv[]){
             unsigned char bt_type;
             int how_much = read(i,&bt_type,sizeof(bt_type));
 
-            printf("READ: %3d \t BT_TYPE : %d \n",how_much,bt_type);
+            //printf("READ: %3d \t BT_TYPE : %d \n",how_much,bt_type);
             if (!how_much){
               printf("READ FAILED\n");
               //exit(1);
@@ -313,8 +322,8 @@ int main (int argc, char * argv[]){
 
                 //read bitfield
                 read_size = read(i,peer -> btfield,piece_track.size);
-                printf("bitfield received length %d char %c\n",
-                    read_size,peer->btfield[0]);
+                printf("bitfield received length %d\n",
+                    read_size);
 
                 strcpy(msg,"MESSAGE BITFIELD FROM");
                 snprintf(msginfo,piece_track.size + 9,"bitfield:%s",
@@ -336,13 +345,12 @@ int main (int argc, char * argv[]){
                 //TODO:handle request struct
                 read_size = read(i,&bfsize,3);//read padding
                 read_size = read(i,&piece_req,sizeof(bt_request_t));
-                printf("request received\n");
-                printf("request index: %d\n",piece_req.index); 
-                bhave = 1;
+                //printf("request received\n");
+                //printf("request index: %d\n",piece_req.index); 
+                bhave = 0x80;
                 charpos = (piece_req.index)%8;
                 // rev direction
-                charpos = 7-charpos;
-                bhave<<=charpos;
+                bhave = bhave>>charpos;
 
 
                 // check if we have it
@@ -384,8 +392,8 @@ int main (int argc, char * argv[]){
                   if(sent == -1){
                     perror("send piece error");
                   }
-                  printf("Piece sent!  Msg len: %3d, Sent Size %3d\n",
-                      req_piece_msg->length,sent);
+                  //printf("Piece sent!  Msg len: %3d, Sent Size %3d\n",
+                  //    req_piece_msg->length,sent);
                   strcpy(msg,"MESSAGE PIECE TO");
                   snprintf(msginfo,50,"index:%d begin:%d",requested->index,
                       requested->begin);
@@ -399,14 +407,12 @@ int main (int argc, char * argv[]){
                   log.len = snprintf(log.logmsg,100,"%s id:%s %s\n",
                       msg,bt_args.peers[peerpos]->id,msginfo);
                   log_write(&log);
-
-
                 }
 
                 //send section
                 break; 
               case BT_PIECE: //piece
-                printf("bt_piece received\n");
+                //printf("bt_piece received\n");
                 read_size = read(i,&bfsize,3);
                 bt_piece_t recv_piece;
                 int data_len = message_len-sizeof(bt_type)-3-sizeof(int)*2;
@@ -418,7 +424,7 @@ int main (int argc, char * argv[]){
                   have_read+=read_size;
                 }
                 if(have_read != data_len){
-                  printf("piece read error!! size %d doesnt match expected %d\n",
+                  printf("piece read error! size %d doesnt match expected %d\n",
                       read_size,data_len);
                 }
 
@@ -597,9 +603,11 @@ int main (int argc, char * argv[]){
   //for peers that are not choked
   //   request pieaces from outcoming traffic
 
+
+
+  //TODO:  (?)
   //check livelenss of peers and replace dead (or useless) peers
   //with new potentially useful peers
-
   //update peers, 
 
 
