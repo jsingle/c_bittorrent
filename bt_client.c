@@ -101,8 +101,8 @@ int main (int argc, char * argv[]){
   memset(bt_args.seen_recently,2,MAX_CONNECTIONS);
 
   // Parse and print args - sets logging file
-  parse_args(&bt_args, argc, argv);
-  if(bt_args.verbose) print_args(&bt_args);
+  parse_args(argc, argv);
+  if(bt_args.verbose) print_args();
 
   //read and parse the torrent tracker file
   node = load_be_node(bt_args.torrent_file);
@@ -117,14 +117,14 @@ int main (int argc, char * argv[]){
   strncpy(null_padded_name,tracker_info.name,strlen(tracker_info.name) -1 );
   SHA1((unsigned char *) null_padded_name, 20,
       (unsigned char *)name_sha1);
-
+  
   init_piece_tracker(&piece_track,&tracker_info); 
   
-  FILE * savefile = process_savefile(&bt_args,&tracker_info,&piece_track);
+  FILE * savefile = process_savefile(&tracker_info,&piece_track);
   
   setup_peer_bitfields(name_sha1,&piece_track,h_message,rh_message);
   // add active peer fd to read list
-  setup_fds_for_polling(&incoming_sockfd,&bt_args.readset,&maxfd);
+  setup_fds_for_polling(&incoming_sockfd,&maxfd);
 
   // whether all connections are used
   int maxconnect=0;
@@ -140,7 +140,7 @@ int main (int argc, char * argv[]){
     //also clients need to handle server closing connections
     //TODO: log clients closing connections, connecting
     int peerpos=-1,j;
-    memcpy(&tempset, &bt_args.readset, sizeof(tempset));
+    memcpy(&tempset, &(bt_args.readset), sizeof(tempset));
     tv.tv_sec = 30;
     tv.tv_usec = 0;
     
@@ -182,7 +182,7 @@ int main (int argc, char * argv[]){
               }else{
                 bt_args.peers[peerpos]->btfield = malloc(piece_track.size); // FREE'D
                 // accept new peer succeeded - add to fd set
-                FD_SET(new_client_sockfd, &bt_args.readset);
+                FD_SET(new_client_sockfd, &(bt_args.readset));
                 if (new_client_sockfd > maxfd) { 
                   maxfd = new_client_sockfd;
                 }
@@ -202,7 +202,6 @@ int main (int argc, char * argv[]){
             
             if(read_msglen && (message_len == 0)){//keepalive
               bt_args.seen_recently[peerpos]++;
-              printf("RECV'D keepalive\n");
               continue;
             }
             
@@ -529,9 +528,6 @@ int main (int argc, char * argv[]){
                 log_record("MESSAGE: CANCEL FROM id: %X\n",
                     bt_args.peers[peerpos]->id);
 
-
-                //TODO: cancel
-                
                 
                 break;
               default:

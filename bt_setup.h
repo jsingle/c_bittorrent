@@ -30,9 +30,9 @@ void usage(FILE * file);
  *
  **/
 
-void parse_args(bt_args_t * bt_args, int argc,  char ** argv);
+void parse_args(int argc,  char ** argv);
 
-void print_args(bt_args_t * bt_args);
+void print_args();
 
 void setup_peer_bitfields(char * sha1, piece_tracker * piece_track, char * h_message, char * rh_message);
 
@@ -45,7 +45,7 @@ int read_handshake(int peer_sock_fd,char * rh_message,char * h_message);
 
 int init_incoming_socket(int port);
 
-FILE * process_savefile(bt_args_t *,bt_info_t *,piece_tracker *);
+FILE * process_savefile(bt_info_t *,piece_tracker *);
 
 void init_piece_tracker(piece_tracker * pt,bt_info_t * track_nfo);
 

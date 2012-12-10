@@ -43,19 +43,19 @@ int fd2peerpos(int i){
 
 
 // setup_fds_for_polling: add active peer fd to read list
-void setup_fds_for_polling(int * incoming_fd,fd_set * readset,int * maxfd){
+void setup_fds_for_polling(int * incoming_fd,int * maxfd){
   int i;
   // Initialize a port to listen for incoming connections
   *incoming_fd = init_incoming_socket(bt_args.port); 
   
   // initialize polling set
-  FD_ZERO(readset);
-  FD_SET(*incoming_fd, readset);
+  FD_ZERO(&(bt_args.readset));
+  FD_SET(*incoming_fd, &(bt_args.readset));
   *maxfd = *incoming_fd;
   
   for(i=0; i<MAX_CONNECTIONS;i++){
     if (bt_args.peers[i] != NULL){
-      FD_SET(bt_args.sockets[i], readset); // add to master set
+      FD_SET(bt_args.sockets[i], &(bt_args.readset)); // add to master set
       if (bt_args.sockets[i] > *maxfd) { // keep track of the maxfd
         *maxfd = bt_args.sockets[i];
       }
@@ -309,7 +309,7 @@ void calc_id(char * ip, unsigned short port, char *id){
 }
 
 /*propogate a peer_t struct and add it to the bt_args structure*/
-int add_peer(peer_t *peer, bt_args_t *bt_args, char * hostname, unsigned short port){
+int add_peer(peer_t *peer, char * hostname, unsigned short port){
   //bt_args.peers[i] = peer;
   //peer-> hostname = inet_ntoa(peer->sockaddr.sin_addr),
   //peer->port;

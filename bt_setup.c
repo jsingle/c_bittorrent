@@ -30,8 +30,6 @@ void setup_peer_bitfields(char * sha1,piece_tracker * piece_track,char * h_messa
           inet_ntoa(peer->sockaddr.sin_addr),peer->port,peer->id);
 
       int * sfd = &(bt_args.sockets[i]);
-
-
       if(connect_to_peer(peer, sha1, h_message, rh_message, sfd)){
 
 
@@ -53,7 +51,7 @@ void setup_peer_bitfields(char * sha1,piece_tracker * piece_track,char * h_messa
 
 
 
-FILE * process_savefile(bt_args_t * bt_args,
+FILE * process_savefile(
     bt_info_t * tracker_info,
     piece_tracker * piece_track)
 {
@@ -61,10 +59,10 @@ FILE * process_savefile(bt_args_t * bt_args,
   int i;
   //deal with savefile
   char * t_file_name;
-  if(!strcmp(bt_args->save_file,"")){
+  if(!strcmp(bt_args.save_file,"")){
     t_file_name = tracker_info->name;
   }else{
-    t_file_name = bt_args->save_file;
+    t_file_name = bt_args.save_file;
   }
   FILE * savefile;
   int newf = 0;
@@ -104,8 +102,11 @@ FILE * process_savefile(bt_args_t * bt_args,
       piece = (char *)malloc(tracker_info->piece_length);
       shapiece = (char *)malloc(20);
       int sread;
+      unsigned char bitand;
       fseek(savefile,0L,SEEK_SET);
-      for(i=0;i<tracker_info->num_pieces-1;i++){
+      
+      for(i=0;i< (tracker_info->num_pieces-1);i++){
+        
         sread = fread(piece,1,tracker_info->piece_length,savefile);
         if(sread != tracker_info->piece_length){
           fprintf(stderr,"problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
@@ -116,14 +117,17 @@ FILE * process_savefile(bt_args_t * bt_args,
             (unsigned char *)shapiece);
         if(!memcmp(tracker_info->piece_hashes[i],shapiece,20)){
           //printf("Piece %d verified\n",i);
-          char bitand = 1;
-          bitand = bitand<<7;
-          bitand = bitand>>(i%8);
-          piece_track->bitfield[i/8] |= bitand;
+          //bitand = 128;
+          bitand = 128>>(i%8);
+          if((i%8) == 7) printf("%d : ",(piece_track -> bitfield)[i/8]);
+          (piece_track->bitfield)[i/8] |= bitand;
+          printf("%3d,",bitand);
+          if((i%8) == 7) printf(": %d\n",(piece_track -> bitfield)[i/8]);
         }else{
           //printf("Piece %d not verified\n",i);
         }
       }
+
       //verify last piece
       int last_pl = tracker_info->length
         - tracker_info->piece_length*(tracker_info->num_pieces-1);
@@ -136,9 +140,8 @@ FILE * process_savefile(bt_args_t * bt_args,
       SHA1((unsigned char *)piece,last_pl,
           (unsigned char *)shapiece);
       if(!memcmp(tracker_info->piece_hashes[i],shapiece,20)){
-        //printf("Piece %d verified\n",i);
-        char bitand = 1;
-        bitand = bitand<<7;
+        unsigned char bitand = 0x80;
+        //bitand = bitand<<7;
         bitand = bitand>>(i%8);
         piece_track->bitfield[i/8] |= bitand;
       }else{
@@ -148,6 +151,7 @@ FILE * process_savefile(bt_args_t * bt_args,
     }
   
     printf("Using existing file: \"%s\" of size %d \n",t_file_name,file_l);
+
     test_progress(piece_track,tracker_info);
   } 
 
@@ -253,34 +257,34 @@ void __parse_peer(peer_t * peer, char * peer_st){
  * ERRORS: Will exit on various errors
  *
  **/
-void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
+void parse_args(int argc,  char * argv[]){
   int ch; //ch for each flag
   int n_peers = 0;
   int i;
 
   /* set the default args */
-  bt_args->verbose=0; //no verbosity
+  bt_args.verbose=0; //no verbosity
 
   //null save_file, log_file and torrent_file
-  memset(bt_args->save_file,0x00,FILE_NAME_MAX);
-  memset(bt_args->torrent_file,0x00,FILE_NAME_MAX);
-  memset(bt_args->log_file,0x00,FILE_NAME_MAX);
+  memset(bt_args.save_file,0x00,FILE_NAME_MAX);
+  memset(bt_args.torrent_file,0x00,FILE_NAME_MAX);
+  memset(bt_args.log_file,0x00,FILE_NAME_MAX);
 
   //null out file pointers
-  bt_args->f_save = NULL;
+  bt_args.f_save = NULL;
 
   //null bt_info pointer, should be set once torrent file is read
-  bt_args->bt_info = NULL;
+  bt_args.bt_info = NULL;
 
   //default lag file
-  strncpy(bt_args->log_file,"bt-client.log",FILE_NAME_MAX);
+  strncpy(bt_args.log_file,"bt-client.log",FILE_NAME_MAX);
 
   for(i=0;i<MAX_CONNECTIONS;i++){
-    bt_args->peers[i] = NULL; //initially NULL
+    bt_args.peers[i] = NULL; //initially NULL
   }
 
-  bt_args->port = 0;
-  bt_args->id = 0;
+  bt_args.port = 0;
+  bt_args.id = 0;
 
   while ((ch = getopt(argc, argv, "hp:s:l:vI:b:")) != -1) {
     switch (ch) {
@@ -289,17 +293,17 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
         exit(0);
         break;
       case 'v': //verbose
-        bt_args->verbose = 1;
+        bt_args.verbose = 1;
         break;
       case 's': //save file
-        strncpy(bt_args->save_file,optarg,FILE_NAME_MAX);
+        strncpy(bt_args.save_file,optarg,FILE_NAME_MAX);
         break;
       case 'l': //log file
-        strncpy(bt_args->log_file,optarg,FILE_NAME_MAX);
+        strncpy(bt_args.log_file,optarg,FILE_NAME_MAX);
         break;
       case 'b': //port
-        bt_args->port = atoi(optarg);
-        if(bt_args->port <= 0){
+        bt_args.port = atoi(optarg);
+        if(bt_args.port <= 0){
           fprintf(stderr,"ERROR: Invalid port number\n");
           exit(1);
         }
@@ -313,13 +317,13 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
           exit(1);
         }
 
-        bt_args->peers[n_peers] = malloc(sizeof(peer_t));
+        bt_args.peers[n_peers] = malloc(sizeof(peer_t));
 
         //parse peers
-        __parse_peer(bt_args->peers[n_peers], optarg);
+        __parse_peer(bt_args.peers[n_peers], optarg);
         break;
       case 'I':
-        bt_args->id = atoi(optarg);
+        bt_args.id = atoi(optarg);
         break;
       default:
         fprintf(stderr,"ERROR: Unknown option '-%c'\n",ch);
@@ -339,26 +343,26 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
   }
 
   //copy torrent file over
-  strncpy(bt_args->torrent_file,argv[0],FILE_NAME_MAX);
+  strncpy(bt_args.torrent_file,argv[0],FILE_NAME_MAX);
 
   // create logger file
-  logger.log_file = fopen(bt_args->log_file,"w");
+  logger.log_file = fopen(bt_args.log_file,"w");
 
   return ;
 }
 
 
-void print_args(bt_args_t * bt_args){
+void print_args(){
   int i;
   printf("Args:\n");
-  printf("verbose: %d\n",bt_args -> verbose);
-  printf("save_file: %s\n",bt_args -> save_file);
-  printf("log_file: %s\n",bt_args -> log_file);
-  printf("torrent_file: %s\n", bt_args -> torrent_file);
+  printf("verbose: %d\n",bt_args.verbose);
+  printf("save_file: %s\n",bt_args.save_file);
+  printf("log_file: %s\n",bt_args.log_file);
+  printf("torrent_file: %s\n", bt_args.torrent_file);
 
   for(i=0;i<MAX_CONNECTIONS;i++){
-    if(bt_args -> peers[i] != NULL)
-      print_peer(bt_args -> peers[i]);
+    if(bt_args.peers[i] != NULL)
+      print_peer(bt_args.peers[i]);
   }
 }
 
@@ -536,15 +540,15 @@ void init_piece_tracker(piece_tracker * pt,bt_info_t * track_nfo){
   pt->msg = (char *)malloc(pt->size + 
       sizeof(int)+ 1 + sizeof(size_t) + 3);// FREE'D
   pt->last_piece = track_nfo->num_pieces-1;
+  
   // last piece is special...
   pt->lp_size = track_nfo->length - 
     (track_nfo->num_pieces-1)*track_nfo->piece_length;
   pt->bitfield = pt->msg+sizeof(int)+1 +sizeof(size_t)+3;
   bzero(pt->msg,pt->size + sizeof(size_t) + 1 +3 +sizeof(int));
-  // SHOULD THIS HAPPEN HERE?
-  free(pt->msg);
+  //free(pt->msg);
 
-  log_record("Bitfield created with length: %d\n",(int)pt->size);
+  log_record("Bitfield created with length: %d\n",(int)(pt->size));
 
   pt->recv_size = (track_nfo->piece_length > 32768) ? 32768 : track_nfo->piece_length;
 
@@ -552,11 +556,8 @@ void init_piece_tracker(piece_tracker * pt,bt_info_t * track_nfo){
     malloc(sizeof(unsigned long int)*track_nfo->num_pieces);
 
   bzero(pt->recvd_pos,
-      sizeof(unsigned long int)*track_nfo->num_pieces);
+      sizeof(unsigned long int)*(track_nfo->num_pieces));
 
   log_record("Setup Piece Tracking, bitfield len %d\n",
       (int)pt->size);
 }
-
-
-

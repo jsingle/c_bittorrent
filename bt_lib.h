@@ -111,7 +111,7 @@ typedef struct {
 
 typedef struct {
   size_t size;//size of the bitfiled
-  char  bitfield[0]; //bitfield where each bit represents a piece that
+  unsigned char  bitfield[0]; //bitfield where each bit represents a piece that
                    //the peer has or doesn't have
 } bt_bitfield_t;
 
@@ -122,7 +122,7 @@ typedef struct{
   unsigned long int recv_size, piece_size, * recvd_pos;
   size_t size;
   char * msg;
-  char* bitfield;
+  unsigned char* bitfield;
   size_t last_piece;
   size_t lp_size;
 } piece_tracker;
@@ -182,10 +182,10 @@ int parse_bt_info(bt_info_t * bt_info, be_node * node);
 unsigned int select_id();
 
 /*propogate a peer_t struct and add it to the bt_args structure*/
-int add_peer(peer_t *peer, bt_args_t *bt_args, char * hostname, unsigned short port);
+int add_peer(peer_t *peer, char * hostname, unsigned short port);
 
 /*drop an unresponsive or failed peer from the bt_args*/
-int drop_peer(peer_t *peer, bt_args_t *bt_args);
+int drop_peer(peer_t *peer);
 
 /* initialize connection with peers */
 int init_peer(peer_t *peer, char * id, char * ip, unsigned short port);
@@ -205,10 +205,10 @@ int check_peer(peer_t *peer);
 int fd2peerpos(int i);
 
 /* add all the file descripters to the polling fd_set*/
-void setup_fds_for_polling(int * incoming_fd,fd_set * readset,int * maxfd);
+void setup_fds_for_polling(int * incoming_fd,int * maxfd);
 
 /*check if peers want to send me something*/
-int poll_peers(bt_args_t *bt_args);
+int poll_peers();
 
 /*send a msg to a peer*/
 int send_to_peer(peer_t * peer, bt_msg_t * msg);
@@ -218,23 +218,23 @@ int read_from_peer(peer_t * peer, bt_msg_t *msg);
 
 
 /* save a piece of the file */
-int save_piece(bt_args_t * bt_args, bt_piece_t * piece);
+int save_piece(bt_piece_t * piece);
 
 /*load a piece of the file into piece */
-int load_piece(bt_args_t * bt_args, bt_piece_t * piece);
+int load_piece(bt_piece_t * piece);
 
 int load_piece_from_file(FILE * fp, long index, bt_piece_t * piece);
 
 /*load the bitfield into bitfield*/
-int get_bitfield(bt_args_t * bt_args, bt_bitfield_t * bitfield);
+int get_bitfield(bt_bitfield_t * bitfield);
 
 /*compute the sha1sum for a piece, store result in hash*/
-int sha1_piece(bt_args_t * bt_args, bt_piece_t * piece, unsigned char * hash);
+int sha1_piece(bt_piece_t * piece, unsigned char * hash);
 
 
 /*Contact the tracker and update bt_args with info learned, 
   such as peer list*/
-int contact_tracker(bt_args_t * bt_args);
+int contact_tracker();
 
 //Gets peer handshake
 void get_peer_handshake(peer_t * p, char * sha1, char * h_message);
