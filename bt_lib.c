@@ -343,25 +343,25 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   //printf("Accepted connection...\n");
 
 
-  char self_id[] = "1232";
-
   // Construct and read handshake
   bzero(h_message,H_MSG_LEN);
   h_message[0] = 19;
   strcpy(&(h_message[1]),"BitTorrent Protocol");
   memset(&(h_message[20]),0,8);
   memcpy(&(h_message[28]),sha1,20);
-  memcpy(&(h_message[48]),self_id,20);
-
-  int rh_ret = read_handshake(client_fd,rh_message,h_message);
   char * ip;
-  int port;
+  unsigned short port;
   char id[21];
   ip = inet_ntoa(client_addr.sin_addr);
   port = htons(client_addr.sin_port);
   calc_id(ip,port,id);
   id[20] = '\0';
+  memcpy(&(h_message[48]),id,20);
 
+  printf("incoming port: %d\n",port);
+  int rh_ret = read_handshake(client_fd,rh_message,h_message);
+
+  memcpy(&(h_message[48]),bt_args.myid,20);
   if(rh_ret){   //read failed
     //printf("READ HANDSHAKE failed\n");
     log_record("HANDSHAKE FAILED peer:%s port:%d id:%X\n",

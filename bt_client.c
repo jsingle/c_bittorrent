@@ -24,12 +24,17 @@
 bt_args_t bt_args;
 log_info logger;
 
-  //TODO: peer ids in handshake, we need to get our ip (see piazza)
+//TODO:
+//  port in bt_args isn't getting set correctly if no -b
+//  port received looks wrong too
+//  fix printing of bitfield, etc. near program start
 
 // OPTIONAL
+  //TODO: still getting connection refused on restart
   //TODO: choking protocol? 
   //TODO: connections should initially be choked and uninterested
   // so we need code to initialize, then unchoke them, etc
+  //TODO: check valgrind.  it's giving some errors and memory leeks
 
 // Handles a sigint
 void sigint_handler(int signum){
@@ -79,6 +84,8 @@ void keepalive_handler(int signum){
   alarm(PEER_IDLE_ALLOWANCE);
 }
 
+
+
 int main (int argc, char * argv[]){
   be_node * node; // top node in the bencoding
   int i, maxfd,result, read_size;
@@ -121,6 +128,8 @@ int main (int argc, char * argv[]){
   init_piece_tracker(&piece_track,&tracker_info); 
   
   FILE * savefile = process_savefile(&tracker_info,&piece_track);
+  
+  get_my_id();
   
   setup_peer_bitfields(name_sha1,&piece_track,h_message,rh_message);
   // add active peer fd to read list
@@ -380,14 +389,6 @@ int main (int argc, char * argv[]){
                       recv_piece.begin
                       > tracker_info.length){
                     fprintf(stderr,"data received exceeds end of file!!\n");
-                    printf("index*len + begin: %d\n",
-                        recv_piece.index*tracker_info.piece_length+
-                        recv_piece.begin);
-                    printf("index %d, len %d, begin %d, totlen %d\n",
-                        recv_piece.index,
-                        tracker_info.piece_length,
-                        recv_piece.begin,
-                        tracker_info.length);
                   }
                   fseek(savefile,recv_piece.index*tracker_info.piece_length + 
                       recv_piece.begin,SEEK_SET);

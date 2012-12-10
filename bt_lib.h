@@ -102,6 +102,7 @@ typedef struct {
   int seen_recently[MAX_CONNECTIONS];
   // the set of filedescripters we're watching
   fd_set readset;
+  char myid[20];
 } bt_args_t;
 
 
@@ -121,7 +122,7 @@ typedef struct {
 typedef struct{
   unsigned long int recv_size, piece_size, * recvd_pos;
   size_t size;
-  char * msg;
+  unsigned char * msg;
   unsigned char* bitfield;
   size_t last_piece;
   size_t lp_size;

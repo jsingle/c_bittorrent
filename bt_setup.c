@@ -8,6 +8,7 @@
 #include "bt_lib.h"
 #include "bencode.h"
 #include <arpa/inet.h>
+#include <ifaddrs.h>
 
 #include <openssl/sha.h>
 
@@ -15,6 +16,42 @@
 extern bt_args_t bt_args;
 extern log_info logger;
 
+void get_my_id(){
+
+  struct ifaddrs * interfaces, *cur_ifa;
+
+  //retrieve info for interfaces  
+  getifaddrs(&interfaces);
+
+  //interate through the interfaces
+  for(cur_ifa = interfaces; cur_ifa; cur_ifa = cur_ifa->ifa_next){
+
+    struct sockaddr_in * ifa_saddr;
+
+    if (cur_ifa->ifa_addr == NULL)
+      continue;
+
+    //only care about one interface, eth0
+    if ( ! (strcmp(cur_ifa->ifa_name,"eth0") == 0)){ 
+      continue; 
+    }
+
+    //don't use IPv6 or MAC address by mistake
+    if (cur_ifa->ifa_addr->sa_family != AF_INET){
+      continue;
+    }
+
+
+    //retrieve sockaddr_in of interfaces    
+    ifa_saddr  = (struct sockaddr_in *) cur_ifa->ifa_addr; 
+  calc_id(inet_ntoa(ifa_saddr->sin_addr),(unsigned short)bt_args.port,
+      bt_args.myid);
+  printf("my ip: %s\nport: %d\n",inet_ntoa(ifa_saddr->sin_addr),bt_args.port);
+  }
+
+  freeifaddrs(interfaces);
+
+}
 
 void setup_peer_bitfields(char * sha1,piece_tracker * piece_track,char * h_message,char * rh_message){
   int i;
@@ -442,8 +479,7 @@ int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
     return 1;
   }
 
-  //TODO: compare full handshake, need our IP
-  if(memcmp(h_message,rh_message,48)){ //don't match
+  if(memcmp(h_message,rh_message,68)){ //don't match
     fprintf(stderr,"Handshake attempted, no match, closing connection\n");
     fprintf(stderr,"Handshake Sent:\n");
     print_hmessage(h_message);
@@ -480,13 +516,17 @@ int connect_to_peer(peer_t * peer, char * sha1, char * h_message,
     return 1;
   }
 
+  memcpy(&(h_message[48]),&(bt_args.myid[0]),20);
 
   int sent = send(peer_sock_fd,h_message,68,0);
   if(sent != 68){//should be 68...
     fprintf(stderr,"handshake send error, returned %d\n",sent);
-  } 
+  }
+  if(sent == -1)
+    perror("Handshake send error");
   //printf("Sent handshake\n");
   *sfd = peer_sock_fd;
+  get_peer_handshake(peer,sha1,h_message);
   handshake_failed = read_handshake(peer_sock_fd,rh_message,h_message);
 
   if(handshake_failed == 0){
@@ -537,7 +577,7 @@ int init_incoming_socket(int port){
 void init_piece_tracker(piece_tracker * pt,bt_info_t * track_nfo){
   //setup bitfield, piece tracking
   pt->size = track_nfo->num_pieces/8 +1;
-  pt->msg = (char *)malloc(pt->size + 
+  pt->msg = (unsigned char *)malloc(pt->size + 
       sizeof(int)+ 1 + sizeof(size_t) + 3);// FREE'D
   pt->last_piece = track_nfo->num_pieces-1;
   

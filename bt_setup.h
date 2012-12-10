@@ -41,6 +41,8 @@ void setup_peer_bitfields(char * sha1, piece_tracker * piece_track, char * h_mes
  */
 int connect_to_peer(peer_t * peer, char * sha1, char * h_message, char * rh_message,int * sfd);
 
+void get_my_id();
+
 int read_handshake(int peer_sock_fd,char * rh_message,char * h_message);
 
 int init_incoming_socket(int port);
