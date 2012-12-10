@@ -48,10 +48,15 @@ void sigint_handler(int signum){
 }
 
 void keepalive_handler(int signum){
-  int i;
+  int i,alive=0;
   //printf("INSIDE KEEPALIVE HANDLER\n");
   for(i=0;i<MAX_CONNECTIONS;i++){ 
     if ( (bt_args.peers[i] != NULL)){
+
+      // send keep alive
+      send(bt_args.sockets[i],&alive,
+          sizeof(int),0);
+
       if (bt_args.seen_recently[i] == -1){
         // if we haven't seen the little shit in a while
         // kick them to the curb 
@@ -195,8 +200,10 @@ int main (int argc, char * argv[]){
             // find the peer in the list
             peerpos = fd2peerpos(i); 
             
-            if(read_msglen == 0){//keepalive
+            if(read_msglen && (message_len == 0)){//keepalive
               bt_args.seen_recently[peerpos]++;
+              printf("RECV'D keepalive\n");
+              continue;
             }
             
             if(!message_len || !read_msglen) continue;
@@ -215,7 +222,7 @@ int main (int argc, char * argv[]){
             int how_much = read(i,&bt_type,sizeof(bt_type));
 
             if (!how_much){
-              fprintf(stderr,"BT_TYPE of new message couldn't be read - keep alive\n");
+              fprintf(stderr,"BT_TYPE of new message couldn't be read\n");
               //exit(1);
             }
             // switch on type of bt_message and handle accordingly
