@@ -23,18 +23,21 @@
 //sorry bro
 bt_args_t bt_args;
 log_info logger;
+// because we have to close it in the sigint
+int incoming_sockfd;
 
-//TODO:
-//  port in bt_args isn't getting set correctly if no -b
-//  port received looks wrong too
-//  fix printing of bitfield, etc. near program start
+//  TODO: port in bt_args isn't getting set correctly if no -b
+//  TODO: port received looks wrong too
+//  TODO: fix printing of bitfield, etc. near program start
 
 // OPTIONAL
-  //TODO: still getting connection refused on restart
+  //TODO: (I'm looking at this -Greg) still getting connection 
+  //  refused on restart
   //TODO: choking protocol? 
   //TODO: connections should initially be choked and uninterested
   // so we need code to initialize, then unchoke them, etc
-  //TODO: check valgrind.  it's giving some errors and memory leeks
+  //TODO: (I'll take this -Greg) check valgrind.  it
+  // 's giving some errors and memory leeks
 
 // Handles a sigint
 void sigint_handler(int signum){
@@ -48,6 +51,7 @@ void sigint_handler(int signum){
     }
   }
   if (logger.log_file != NULL) fclose(logger.log_file);
+  close(incoming_sockfd);
   printf("GOODBYE!\n");
   exit(1);
 }
@@ -92,7 +96,6 @@ int main (int argc, char * argv[]){
   struct timeval tv;
   char h_message[H_MSG_LEN];
   char rh_message[H_MSG_LEN];
-  int incoming_sockfd;
   bt_info_t tracker_info;
   piece_tracker piece_track;
   
@@ -145,9 +148,14 @@ int main (int argc, char * argv[]){
 
 
   while(1){
-    //TODO: need to handle clients closing connections
-    //also clients need to handle server closing connections
-    //TODO: log clients closing connections, connecting
+    // TODO: clients need to handle server closing connections
+    // 
+    // Greg - clients closing connections is handled by keepalive
+    // handler I think
+    //
+    // TODO: log clients closing connections, 
+    //
+    // Greg - I think we are logging connecting in bt_lib.c/accept_new_peer
     int peerpos=-1,j;
     memcpy(&tempset, &(bt_args.readset), sizeof(tempset));
     tv.tv_sec = 30;
@@ -177,7 +185,8 @@ int main (int argc, char * argv[]){
                 break;
               }
             }
-            if(peerpos==-1){//cant find an empty slot, so we're at max_connect
+            if(peerpos==-1){
+              //cant find an empty slot, so we're at max_connect
               if(maxconnect) continue;
               printf("Got a request for a new connection but already at max\n");
               maxconnect = 1;
