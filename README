@@ -1,5 +1,44 @@
+Greg Taschuk & Jordan Singleton
+gtaschu1 & jsingle1
 
-This is skeleton development for your BitTorrent (BT) client. 
+
+Lab 5 - Bittorrent
+
+#################################
+# OVERVIEW 
+#################################
+
+In this lab we implement a bittorrent client(/server) which
+accepts a number of peers as command line arguments or as
+incoming connections via the bittorrent handshake protocol.
+
+This is N-Peers with Restarts
+
+#################################
+# IMPLEMENTATION NOTES 
+#################################
+
+We believe the functions are written as you expect that we
+wrote them.  A few notes:
+
+- We implemented symmetrically from the start - 
+  We poll all file descripters (including the incoming fd) using
+  fd sets.  This implementation is very closesly related to the
+  one Beejus gave in his guide to network programming
+
+- Logging is done via a log_record function which is a wrapper
+  around vprintf and accepts formatted strings
+
+- Supports starting with partial files
+
+You can make the bt_client executable via the make command in the root directory
+
+Running ./bt_client without aguments will show usage information
+
+
+#################################
+# FILES FROM LAB ASSIGNMENT (none added)
+#################################
 
 Included Files and Purpose
 
@@ -16,6 +55,4 @@ Suggested Additional Files [and headers]
 
 bt_io.c[.h]   :   File for handing input output
 bt_sock.c[.h] :   File for handling socket and network issues
-
-
 

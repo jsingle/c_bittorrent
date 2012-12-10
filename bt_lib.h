@@ -46,10 +46,9 @@
 #define ID_SIZE 20
 
 #define H_MSG_LEN 68
-
-#define SUBPIECE_LEN 32768
-  
+#define SUBPIECE_LEN 32768  
 #define BUF_LEN 1024
+#define PEER_IDLE_ALLOWANCE 12
 
 typedef struct {
   FILE * log_file;
@@ -100,8 +99,9 @@ typedef struct {
   /*set once torrent is parse*/
   bt_info_t * bt_info; //the parsed info for this torrent
   int port;
-  int seen_recently[MAXCONNECTIONS];
-
+  int seen_recently[MAX_CONNECTIONS];
+  // the set of filedescripters we're watching
+  fd_set readset;
 } bt_args_t;
 
 

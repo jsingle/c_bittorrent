@@ -24,10 +24,6 @@
 bt_args_t bt_args;
 log_info logger;
 
-  //TODO: check liveness of peers and replace dead (or useless) 
-  // peers with new potentially useful peers
-  // update peers
-
   //TODO: peer ids in handshake, we need to get our ip (see piazza)
 
 // OPTIONAL
@@ -36,10 +32,11 @@ log_info logger;
   // so we need code to initialize, then unchoke them, etc
 
 // Handles a sigint
-void int_handler(int signum){
+void sigint_handler(int signum){
   int i;
   for(i=0;i<MAX_CONNECTIONS;i++){ 
-    if (bt_args.peers[i] != NULL){
+    if (bt_args.peers[i] != NULL){ 
+
       close(bt_args.sockets[i]);
       free(bt_args.peers[i]->btfield);
       free(bt_args.peers[i]);
@@ -48,6 +45,33 @@ void int_handler(int signum){
   if (logger.log_file != NULL) fclose(logger.log_file);
   printf("GOODBYE!\n");
   exit(1);
+}
+
+void keepalive_handler(int signum){
+  int i;
+  //printf("INSIDE KEEPALIVE HANDLER\n");
+  for(i=0;i<MAX_CONNECTIONS;i++){ 
+    if ( (bt_args.peers[i] != NULL)){
+      if (bt_args.seen_recently[i] == -1){
+        // if we haven't seen the little shit in a while
+        // kick them to the curb 
+        log_record("Kicking off peer: %s:%u ",
+            inet_ntoa(bt_args.peers[i]->sockaddr.sin_addr),
+            bt_args.peers[i]->port);
+
+        FD_CLR(bt_args.sockets[i],&(bt_args.readset)); 
+
+        free(bt_args.peers[i]->btfield);
+        free(bt_args.peers[i]);
+        bt_args.peers[i] = NULL;
+        bt_args.seen_recently[i] = 2;
+      }else if (bt_args.seen_recently[i] > -1) 
+        bt_args.seen_recently[i]--;
+    }
+  }
+  //reset what we have seen recently
+  //bzero(bt_args.seen_recently,sizeof(int)*MAX_CONNECTIONS);
+  alarm(PEER_IDLE_ALLOWANCE);
 }
 
 int main (int argc, char * argv[]){
@@ -63,10 +87,14 @@ int main (int argc, char * argv[]){
   //used for logging in main loop
   char msginfo[50];
 
-  fd_set readset, tempset;
+  fd_set tempset;
   gettimeofday(&(logger.start_tv),NULL);
 
-  signal(SIGINT, int_handler);
+  signal(SIGINT, sigint_handler);
+  signal(SIGALRM, keepalive_handler);
+  alarm(PEER_IDLE_ALLOWANCE);
+  memset(bt_args.seen_recently,2,MAX_CONNECTIONS);
+
   // Parse and print args - sets logging file
   parse_args(&bt_args, argc, argv);
   if(bt_args.verbose) print_args(&bt_args);
@@ -91,7 +119,7 @@ int main (int argc, char * argv[]){
   
   setup_peer_bitfields(name_sha1,&piece_track,h_message,rh_message);
   // add active peer fd to read list
-  setup_fds_for_polling(&incoming_sockfd,&readset,&maxfd);
+  setup_fds_for_polling(&incoming_sockfd,&bt_args.readset,&maxfd);
 
   // whether all connections are used
   int maxconnect=0;
@@ -105,10 +133,9 @@ int main (int argc, char * argv[]){
   while(1){
     //TODO: need to handle clients closing connections
     //also clients need to handle server closing connections
-    //TODO: still getting connection refused on restart (maybe? hasn't happened in a while)
     //TODO: log clients closing connections, connecting
     int peerpos=-1,j;
-    memcpy(&tempset, &readset, sizeof(tempset));
+    memcpy(&tempset, &bt_args.readset, sizeof(tempset));
     tv.tv_sec = 30;
     tv.tv_usec = 0;
     
@@ -150,7 +177,7 @@ int main (int argc, char * argv[]){
               }else{
                 bt_args.peers[peerpos]->btfield = malloc(piece_track.size); // FREE'D
                 // accept new peer succeeded - add to fd set
-                FD_SET(new_client_sockfd, &readset);
+                FD_SET(new_client_sockfd, &bt_args.readset);
                 if (new_client_sockfd > maxfd) { 
                   maxfd = new_client_sockfd;
                 }
@@ -161,20 +188,25 @@ int main (int argc, char * argv[]){
             }
           }
           else { 
-            // otherwise someone else is sending us something
+            // otherwise someone is sending us something
             int message_len;
             int read_msglen = read(i,&message_len,sizeof(int));
+            
+            // find the peer in the list
+            peerpos = fd2peerpos(i); 
+            
+            if(read_msglen == 0){//keepalive
+              bt_args.seen_recently[peerpos]++;
+            }
+            
             if(!message_len || !read_msglen) continue;
             if(read_msglen == -1){
               perror("Read msg failed");
               continue;
             }
 
-            // find the peer in the list
-            peerpos = fd2peerpos(i);
- 
-            // set them as alive
-            bt_args.seen_recently[peerpos] = 1; 
+            // set them as seen_recently
+            bt_args.seen_recently[peerpos]++; 
 
             peer_t * peer;
             peer = bt_args.peers[peerpos];
@@ -183,7 +215,7 @@ int main (int argc, char * argv[]){
             int how_much = read(i,&bt_type,sizeof(bt_type));
 
             if (!how_much){
-              fprintf(stderr,"BT_TYPE of new message couldn't be read\n");
+              fprintf(stderr,"BT_TYPE of new message couldn't be read - keep alive\n");
               //exit(1);
             }
             // switch on type of bt_message and handle accordingly
@@ -426,7 +458,6 @@ int main (int argc, char * argv[]){
                   piecesha,20)){
                     printf("Got piece %d\n",recv_piece.index);
 
-
                     log_record("VERIFIED PIECE %d\n",
                         recv_piece.index);
 
@@ -493,6 +524,8 @@ int main (int argc, char * argv[]){
 
 
                 //TODO: cancel
+                
+                
                 break;
               default:
                 fprintf(stderr,"unexpected btmsg value received\n");
