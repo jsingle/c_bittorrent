@@ -49,13 +49,13 @@
 
 #define SUBPIECE_LEN 32768
   
-
+#define BUF_LEN 1024
 
 typedef struct {
   FILE * log_file;
   struct timeval start_tv, cur_tv;
-  char logmsg[100];
-  int len;
+  //char logmsg[100];
+  //int len;
 } log_info;
 
 
@@ -100,7 +100,7 @@ typedef struct {
   /*set once torrent is parse*/
   bt_info_t * bt_info; //the parsed info for this torrent
   int port;
-  
+  int seen_recently[MAXCONNECTIONS];
 
 } bt_args_t;
 
@@ -201,6 +201,12 @@ void print_peer(peer_t *peer);
 /* check status on peers, maybe they went offline? */
 int check_peer(peer_t *peer);
 
+/* reverse lookup peer position by filedescriptor */
+int fd2peerpos(int i);
+
+/* add all the file descripters to the polling fd_set*/
+void setup_fds_for_polling(int * incoming_fd,fd_set * readset,int * maxfd);
+
 /*check if peers want to send me something*/
 int poll_peers(bt_args_t *bt_args);
 
@@ -217,7 +223,6 @@ int save_piece(bt_args_t * bt_args, bt_piece_t * piece);
 /*load a piece of the file into piece */
 int load_piece(bt_args_t * bt_args, bt_piece_t * piece);
 
-
 int load_piece_from_file(FILE * fp, long index, bt_piece_t * piece);
 
 /*load the bitfield into bitfield*/
@@ -230,7 +235,6 @@ int sha1_piece(bt_args_t * bt_args, bt_piece_t * piece, unsigned char * hash);
 /*Contact the tracker and update bt_args with info learned, 
   such as peer list*/
 int contact_tracker(bt_args_t * bt_args);
-
 
 //Gets peer handshake
 void get_peer_handshake(peer_t * p, char * sha1, char * h_message);

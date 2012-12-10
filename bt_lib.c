@@ -19,30 +19,78 @@
 #include "bt_setup.h"
 
 extern log_info logger;
+extern bt_args_t bt_args;
 
-void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info){
+// fd2peerpos: gets the peer position of a peer
+int fd2peerpos(int i){
+  int peerpos,j;
 
-  int i;
-  int havepieces=0;
-  for(i=0;i<tracker_info->num_pieces;i++){
-    unsigned char bitand = 0x80;
-    if(piece_track->bitfield[i/8] & bitand>>(i%8)){
-      if(!havepieces) printf("Have pieces: %d",i);
-      else printf(", %d",i);
-      havepieces++;
+  peerpos=-1;
+  for(j=0;j<MAX_CONNECTIONS;j++){
+    if(bt_args.sockets[j] == i && bt_args.peers[j] != NULL){
+      peerpos=j;
+      break;
     }
   }
-  if(havepieces)printf("\n");
-  printf("Have %d of %d pieces, download %d%% completed\n",
-      havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces);
-  if(havepieces == tracker_info->num_pieces)
-    printf("Download Complete!\n");
 
+  if(peerpos==-1){
+    fprintf(stderr,"Couldn't find connected peer in peers\n");
+    exit(1);
+  }
+
+  return peerpos;
 }
 
 
+// setup_fds_for_polling: add active peer fd to read list
+void setup_fds_for_polling(int * incoming_fd,fd_set * readset,int * maxfd){
+  int i;
+  // Initialize a port to listen for incoming connections
+  *incoming_fd = init_incoming_socket(bt_args.port); 
+  
+  // initialize polling set
+  FD_ZERO(readset);
+  FD_SET(*incoming_fd, readset);
+  *maxfd = *incoming_fd;
+  
+  for(i=0; i<MAX_CONNECTIONS;i++){
+    if (bt_args.peers[i] != NULL){
+      FD_SET(bt_args.sockets[i], readset); // add to master set
+      if (bt_args.sockets[i] > *maxfd) { // keep track of the maxfd
+        *maxfd = bt_args.sockets[i];
+      }
+    }
+  }
+}
 
 
+// Prints info about how many pieces of a file we have
+void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info){
+  int i;
+  int havepieces=0;
+  int contig=-1;
+  printf("File bitfield: ");
+  for(i=0;i<tracker_info->num_pieces;i++){
+    unsigned char bitand = 0x80;
+    if(piece_track->bitfield[i/8] & bitand>>(i%8)){
+      //if(!havepieces) printf("Have pieces: %d",i);
+      //else printf(", %d",i);
+      printf("1");
+      havepieces++;
+    }
+    else{
+      printf("0");
+      if (contig == -1) contig = i;
+    }
+  }
+  if(havepieces)printf("\n");
+  printf("Have %d of %d pieces, download %d%% completed, the %d first pieces are done\n",
+      havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces,contig);
+  if(havepieces == tracker_info->num_pieces)
+    printf("Download Complete!\n");
+}
+
+// Sends a request for a piece of a file
 int send_request(int fd, bt_request_t * btrequest){
   bt_msg_t bitfield_msg;
   bitfield_msg.length = 1+3 +sizeof(bt_request_t);
@@ -54,12 +102,12 @@ int send_request(int fd, bt_request_t * btrequest){
     return 0;
   }
   else{
-    printf("error in send request, returned: %d\n",sent);
+    log_record("error in send request, returned: %d\n",sent);
     return 1;
   }
 }
 
-
+// Sends a message about if we're interested or not in a file
 int send_interested(int fd, int interested){
   bt_msg_t bitfield_msg;
   bitfield_msg.length = 1;
@@ -71,7 +119,7 @@ int send_interested(int fd, int interested){
   if(sent == bitfield_msg.length + sizeof(int))
     return 0;
   else{
-    printf("error in send interested: %d\n",sent);
+    log_record("error in send interested: %d\n",sent);
     return 1;
   }
 }
@@ -90,15 +138,14 @@ int is_interested(piece_tracker * piecetrack,
       if(!(piecetrack->bitfield[i] & a) && (peer->btfield[i] & a)){
         sent = send_interested(fd,1);//interested
         if(sent){
-          log_record("MESSAGE INTERESTED TO peer:%s FAILED\n",
+          log_record("MESSAGE: INTERESTED TO peer:%s FAILED\n",
               peer->id);
         }
         else{
-          log_record("MESSAGE INTERESTED TO peer:%s\n",
+          log_record("MESSAGE: INTERESTED TO peer:%s\n",
               peer->id);
         }
         peer->interested = 1;
-
         return 1;
       }
       a = a>>1;
@@ -107,11 +154,11 @@ int is_interested(piece_tracker * piecetrack,
 
   sent = send_interested(fd,0);//not interested
   if(sent){
-    log_record("MESSAGE NOT INTERESTED TO peer:%s FAILED\n",
+    log_record("MESSAGE: NOT INTERESTED TO peer:%s FAILED\n",
         peer->id);
   }
   else{
-    log_record("MESSAGE NOT INTERESTED TO peer:%s\n",
+    log_record("MESSAGE: NOT INTERESTED TO peer:%s\n",
         peer->id);
   }
   peer->interested = 0;
@@ -156,10 +203,10 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd){
 
         sent = send_request(fd,&btrequest);
         if(sent){
-          log_record("MESSAGE REQUEST TO peer:%s index:%i FAILED\n",
+          log_record("MESSAGE: REQUEST TO peer:%s index:%i FAILED\n",
               peer->id,(int)index);
         }else{
-          log_record("MESSAGE REQUEST TO peer:%s index:%i begin:%i len:%i\n",
+          log_record("MESSAGE: REQUEST TO peer:%s index:%i begin:%i len:%i\n",
               peer->id,(int)index,btrequest.begin,btrequest.length);
         }
         return sent;
@@ -169,17 +216,18 @@ int process_bitfield(piece_tracker * piecetrack, peer_t *  peer, int fd){
   }
   sent = send_interested(fd,0);//not interested
   if(sent){
-    log_record("MESSAGE NOT INTERESTED TO peer:%s FAILED\n",
+    log_record("MESSAGE: NOT INTERESTED TO peer:%s FAILED\n",
         peer->id);
   }
   else{
-    log_record("MESSAGE NOT INTERESTED TO peer:%s\n",
+    log_record("MESSAGE: NOT INTERESTED TO peer:%s\n",
         peer->id);
   }
   peer->interested = 0;
   return 2;
 }
 
+// Sends a message about whether we have a piece or not
 int send_have(int fd, int have){
   bt_msg_t bitfield_msg;
   bitfield_msg.length = sizeof(int) + 1;
@@ -190,7 +238,7 @@ int send_have(int fd, int have){
   return sent;
 }
 
-
+// send a bitfield message
 int send_bitfield(
     int new_client_sockfd,
     piece_tracker * piece_track,
@@ -216,20 +264,20 @@ int send_bitfield(
 
   int sent = send(new_client_sockfd,bitfield_msg,
       sizeof(int) + bitfield_msg->length,0);
-  printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",
-      bitfield_msg->length,sent);
+  //printf("Bitfield sent!  Msg len: %3d, Sent Size %3d\n",
+  //    bitfield_msg->length,sent);
 
   if(sent == sizeof(int) + bitfield_msg->length){
-    log_record("MESSAGE BITFIELD TO peer:%s bfield:%s\n",
+    log_record("MESSAGE: BITFIELD TO peer:%s bfield:%s\n",
         peer->id,piece_track->bitfield);
   }else{
-    log_record("MESSAGE BITFIELD to peer:%s FAILED\n",peer->id);
+    log_record("MESSAGE: BITFIELD to peer:%s FAILED\n",peer->id);
   }
   return sent;
 
 }
 
-
+// overides a 
 void log_record( const char* format, ... ) {
   float ms;
   gettimeofday(&(logger.cur_tv),NULL);
@@ -276,7 +324,8 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   struct sockaddr_in client_addr;
 
   socklen_t client_addr_len = sizeof(client_addr); 
-  printf("Waiting for connection...\n");
+  
+ // printf("Waiting for connection...\n");
   client_fd = accept(
       incoming_sockfd,//int socket, 
       (struct sockaddr *) &client_addr,//struct sockaddr * address, 
@@ -291,7 +340,7 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
     return 1;
   }
-  printf("Accepted connection...\n");
+  //printf("Accepted connection...\n");
 
 
   char self_id[] = "1232";
@@ -314,7 +363,7 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   id[20] = '\0';
 
   if(rh_ret){   //read failed
-    printf("READ HANDSHAKE failed\n");
+    //printf("READ HANDSHAKE failed\n");
     log_record("HANDSHAKE FAILED peer:%s port:%d id:%X\n",
         ip,port,id);
 
@@ -326,7 +375,7 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   int sent = send(client_fd,h_message,H_MSG_LEN,0);
   if(sent != H_MSG_LEN){
     //should be 68...
-    fprintf(stderr,"Handshake wasn't sent correctly, returned %d\n",sent);
+    //fprintf(stderr,"Handshake wasn't sent correctly, returned %d\n",sent);
     log_record("HANDSHAKE SEND FAILED peer:%s port:%d id:%X\n",
         ip,port,id);
     return 1;
@@ -335,7 +384,7 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
 
   // Make a peer
 
-  printf("Attempting connection with peer %s on port %d\n",
+  log_record("Attempting connection with peer %s on port %d\n",
       ip,
       port);
 

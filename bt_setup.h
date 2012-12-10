@@ -47,4 +47,6 @@ int init_incoming_socket(int port);
 
 FILE * process_savefile(bt_args_t *,bt_info_t *,piece_tracker *);
 
+void init_piece_tracker(piece_tracker * pt,bt_info_t * track_nfo);
+
 #endif

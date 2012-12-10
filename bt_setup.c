@@ -70,7 +70,6 @@ FILE * process_savefile(bt_args_t * bt_args,
   int newf = 0;
   savefile = fopen(t_file_name,"r+");
   if (savefile == NULL){
-    printf("Creating new file \"%s\" as savefile\n",t_file_name);
     newf = 1;
     savefile = fopen(t_file_name,"w+");
     if(savefile == NULL){
@@ -80,23 +79,24 @@ FILE * process_savefile(bt_args_t * bt_args,
     fseek(savefile,0L,SEEK_END);
     int file_l = ftell(savefile);
     fseek(savefile,0L,SEEK_SET);
-    //make file bigger
+
+    //make file big enough to hold errthing
     fseek(savefile,tracker_info->length-1,SEEK_SET);
     fwrite("x",1,1,savefile);//writes to ensure proper length
     file_l = ftell(savefile);
-    printf("file size set: %d\n",file_l);
-  }else{
-    printf("Reading and checking existing savefile \"%s\"\n",t_file_name);
+
+    printf("Creating new file \"%s\" of size %d\n",t_file_name,file_l);
+  }
+  else{
     fseek(savefile,0L,SEEK_END);
     int file_l = ftell(savefile);
-    printf("file size: %d\n",file_l);
     fseek(savefile,0L,SEEK_SET);
     if(file_l < tracker_info->length){
       //make file bigger
       fseek(savefile,tracker_info->length-1,SEEK_SET);
       fwrite("x",1,1,savefile);//writes to ensure proper length
       file_l = ftell(savefile);
-      printf("file size set: %d\n",file_l);
+      printf("file size increased to: %d\n",file_l);
     }else{//only try to verify files that are long enough
       //TODO: deal with savefiles that are too long
       char * piece;
@@ -108,7 +108,7 @@ FILE * process_savefile(bt_args_t * bt_args,
       for(i=0;i<tracker_info->num_pieces-1;i++){
         sread = fread(piece,1,tracker_info->piece_length,savefile);
         if(sread != tracker_info->piece_length){
-          printf("problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
+          fprintf(stderr,"problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
               sread, tracker_info->piece_length,ftell(savefile));
         }
         //sha1 of piece into shapiece
@@ -129,7 +129,7 @@ FILE * process_savefile(bt_args_t * bt_args,
         - tracker_info->piece_length*(tracker_info->num_pieces-1);
       sread = fread(piece,1,last_pl,savefile);
       if(sread != last_pl){
-        printf("problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
+        fprintf(stderr,"problem reading savefile: read:%d, wanted:%d fileloc:%ld\n",
             sread, last_pl,ftell(savefile));
       }
       //sha1 of piece into shapiece
@@ -146,19 +146,11 @@ FILE * process_savefile(bt_args_t * bt_args,
       }
       //setup bitfield
     }
-    int havepieces=0;
-    for(i=0;i<tracker_info->num_pieces;i++){
-      char bitand = 1<<7;
-      if(piece_track->bitfield[i/8] & bitand>>(i%8)){
-        if(!havepieces) printf("Have pieces: %d",i);
-        else printf(", %d",i);
-        havepieces++;
-      }
-    }
-    if(havepieces)printf("\n");
-    printf("Have %d of %d pieces, download %d%% completed\n",
-        havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces);
-  }
+  
+    printf("Using existing file: \"%s\" of size %d \n",t_file_name,file_l);
+    test_progress(piece_track,tracker_info);
+  } 
+
 
   return savefile;
 }
@@ -349,6 +341,9 @@ void parse_args(bt_args_t * bt_args, int argc,  char * argv[]){
   //copy torrent file over
   strncpy(bt_args->torrent_file,argv[0],FILE_NAME_MAX);
 
+  // create logger file
+  logger.log_file = fopen(bt_args->log_file,"w");
+
   return ;
 }
 
@@ -421,13 +416,15 @@ int parse_bt_info(bt_info_t * out, be_node * node)
 void print_hmessage(char * h_message){
   int x;
   for(x=0;x<68;++x){
-    if ( x < 1) printf("%d",h_message[x]);
-    else if ( x < 20) printf("%c",h_message[x]);
-    else printf("%X",h_message[x]);
+    if ( x < 1) fprintf(stderr,"%d",h_message[x]);
+    else if ( x < 20) fprintf(stderr,"%c",h_message[x]);
+    else fprintf(stderr,"%X",h_message[x]);
   }
-  printf("\n");
+  fprintf(stderr,"\n");
 }
 
+// Reads a handshake from a peer, checks if its the same
+// ass the one we want to send
 int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
   int read_size = read(peer_sock_fd,rh_message,68);
   if(read_size == -1){
@@ -435,26 +432,24 @@ int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
     return 1;
   }
 
-
   if(read_size != 68){
     printf("Incorrect handshake size received: %d\n",read_size);
     //continue;
     return 1;
   }
 
-  print_hmessage(h_message);
   //TODO: compare full handshake, need our IP
   if(memcmp(h_message,rh_message,48)){ //don't match
-    printf("Handshake attempted, no match, closing connection: %s\n",rh_message);
-    printf("hmessage:\n");
+    fprintf(stderr,"Handshake attempted, no match, closing connection\n");
+    fprintf(stderr,"Handshake Sent:\n");
     print_hmessage(h_message);
-    printf("rhmessage:\n");
+    fprintf(stderr,"Handshake Received:\n");
     print_hmessage(rh_message);
 
     close(peer_sock_fd);
     return 1;
   }else {  //handshake match
-    printf("Handshake successful\n");
+    //printf("Handshake successful\n");
     return 0;
   }
   return 1;
@@ -464,10 +459,7 @@ int read_handshake(int peer_sock_fd,char * rh_message,char * h_message){
 //initializes connection, using handshake, with given peer
 int connect_to_peer(peer_t * peer, char * sha1, char * h_message, 
     char * rh_message, int * sfd){
-
-  printf("Attempting connection with peer %s on port %d\n",
-      inet_ntoa(peer->sockaddr.sin_addr),
-      peer->port);
+  int handshake_failed;
 
   // Create socket to handle peer
   int peer_sock_fd;
@@ -489,9 +481,18 @@ int connect_to_peer(peer_t * peer, char * sha1, char * h_message,
   if(sent != 68){//should be 68...
     fprintf(stderr,"handshake send error, returned %d\n",sent);
   } 
-  printf("Sent handshake\n");
+  //printf("Sent handshake\n");
   *sfd = peer_sock_fd;
-  return read_handshake(peer_sock_fd,rh_message,h_message);
+  handshake_failed = read_handshake(peer_sock_fd,rh_message,h_message);
+
+  if(handshake_failed == 0){
+    printf("Established connection with peer %s on port %d\n",
+        inet_ntoa(peer->sockaddr.sin_addr),
+        peer->port);
+  }
+
+  return handshake_failed;
+
 }
 
 
@@ -527,3 +528,35 @@ int init_incoming_socket(int port){
 
   return sockfd;
 }
+
+
+void init_piece_tracker(piece_tracker * pt,bt_info_t * track_nfo){
+  //setup bitfield, piece tracking
+  pt->size = track_nfo->num_pieces/8 +1;
+  pt->msg = (char *)malloc(pt->size + 
+      sizeof(int)+ 1 + sizeof(size_t) + 3);// FREE'D
+  pt->last_piece = track_nfo->num_pieces-1;
+  // last piece is special...
+  pt->lp_size = track_nfo->length - 
+    (track_nfo->num_pieces-1)*track_nfo->piece_length;
+  pt->bitfield = pt->msg+sizeof(int)+1 +sizeof(size_t)+3;
+  bzero(pt->msg,pt->size + sizeof(size_t) + 1 +3 +sizeof(int));
+  // SHOULD THIS HAPPEN HERE?
+  free(pt->msg);
+
+  log_record("Bitfield created with length: %d\n",(int)pt->size);
+
+  pt->recv_size = (track_nfo->piece_length > 32768) ? 32768 : track_nfo->piece_length;
+
+  pt->recvd_pos = (unsigned long int *)
+    malloc(sizeof(unsigned long int)*track_nfo->num_pieces);
+
+  bzero(pt->recvd_pos,
+      sizeof(unsigned long int)*track_nfo->num_pieces);
+
+  log_record("Setup Piece Tracking, bitfield len %d\n",
+      (int)pt->size);
+}
+
+
+
