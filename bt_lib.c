@@ -90,7 +90,7 @@ void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info){
     if(contig == -1)
       printf("\n");
     else
-      printf("the first %d pieces are ready to stream\n",contig)
+      printf("the first %d pieces are ready to stream\n",contig);
   }
 }
 
