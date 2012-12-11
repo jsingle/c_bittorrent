@@ -395,8 +395,6 @@ int main (int argc, char * argv[]){
                       read_size,data_len);
                 }
 
-                // parse out piece number
-
 
                 if(piece_track.recvd_pos[recv_piece.index] == recv_piece.begin){
                   //good to go, offset matches what we currently have

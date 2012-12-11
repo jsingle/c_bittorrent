@@ -587,7 +587,7 @@ void init_piece_tracker(piece_tracker * pt,bt_info_t * track_nfo){
   pt->msg = (unsigned char *)malloc(pt->size + 
       sizeof(int)+ 1 + sizeof(size_t) + 3);
   pt->last_piece = track_nfo->num_pieces-1;
-  
+  pt->piece_size = track_nfo->piece_length;
   // last piece is special...
   pt->lp_size = track_nfo->length - 
     (track_nfo->num_pieces-1)*track_nfo->piece_length;
