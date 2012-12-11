@@ -455,7 +455,6 @@ int main (int argc, char * argv[]){
                   read_size=fwrite(recv_data + 
                       (piece_track.recvd_pos[recv_piece.index]-recv_piece.begin)
                       ,1,data_len,savefile);
-                  free(recv_data);
                   snprintf(msginfo,50,"wrote:%d",read_size);
                   piece_track.recvd_pos[recv_piece.index] += read_size;
                   if(piece_track.recvd_pos[recv_piece.index] > 
@@ -510,6 +509,7 @@ int main (int argc, char * argv[]){
                   }
                   free(piecesha);
                 }
+                  free(recv_data);
 
                 //last piece scenario
                 if(recv_piece.index == piece_track.last_piece){

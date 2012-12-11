@@ -359,7 +359,6 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   ip = inet_ntoa(client_addr.sin_addr);
   port = htons(client_addr.sin_port);
   port = bt_args.port;
-  printf("client's port: %d\n",port);
   calc_id(ip,port,id);
   id[20] = '\0';
   memcpy(&(h_message[48]),id,20);
