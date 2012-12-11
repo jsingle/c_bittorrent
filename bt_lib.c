@@ -366,8 +366,6 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
     //printf("READ HANDSHAKE failed\n");
     log_record("HANDSHAKE FAILED peer:%s port:%d id:%X\n",
         ip,port,id);
-
-
     return 1;
   }
 

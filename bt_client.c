@@ -23,8 +23,10 @@
 //sorry bro
 bt_args_t bt_args;
 log_info logger;
+
 // because we have to close it in the sigint
-int incoming_sockfd;
+  int incoming_sockfd;
+  FILE * savefile;
 
 //  TODO: port in bt_args isn't getting set correctly if no -b
 //  TODO: port received looks wrong too
@@ -38,20 +40,33 @@ int incoming_sockfd;
   // so we need code to initialize, then unchoke them, etc
   //TODO: (I'll take this -Greg) check valgrind.  it
   // 's giving some errors and memory leeks
+  // VALGRIND has the following remaining pieces reachable at
+  // the end nums given for mp3
+  //
+  // I'm assuming, since we use piece_tracker until the bitter
+  // end, we shouldn't free it. Perhaps we could free the pieces
+  // as relevant?
+  //
+  // 1140 - Sha1 of file pieces in piece_tracker
+  // 456  - piece_tracker -> recvd_pos
+  // 456  - piece_tracker -> piece_hashes (pointers)
+  //  24  - piece_tracker -> msg
+  //  20  - namesha1 // used for handshakes 
 
 // Handles a sigint
 void sigint_handler(int signum){
   int i;
   for(i=0;i<MAX_CONNECTIONS;i++){ 
     if (bt_args.peers[i] != NULL){ 
-
       close(bt_args.sockets[i]);
       free(bt_args.peers[i]->btfield);
       free(bt_args.peers[i]);
     }
   }
   if (logger.log_file != NULL) fclose(logger.log_file);
+  //free(name_sha1);
   close(incoming_sockfd);
+  fclose(savefile);
   printf("GOODBYE!\n");
   exit(1);
 }
@@ -98,7 +113,8 @@ int main (int argc, char * argv[]){
   char rh_message[H_MSG_LEN];
   bt_info_t tracker_info;
   piece_tracker piece_track;
-  
+
+  char * name_sha1;
   //used for logging in main loop
   char msginfo[50];
 
@@ -118,9 +134,10 @@ int main (int argc, char * argv[]){
   node = load_be_node(bt_args.torrent_file);
   if(bt_args.verbose) be_dump(node);
   parse_bt_info(&tracker_info,node); 
+  be_free(node);
 
   //sha1 hash of name field
-  char * name_sha1 = malloc(20);//used for handshake
+  name_sha1 = malloc(20);//used for handshake
   bzero(name_sha1,20);
   char null_padded_name[20] = {0};
 
@@ -130,7 +147,7 @@ int main (int argc, char * argv[]){
   
   init_piece_tracker(&piece_track,&tracker_info); 
   
-  FILE * savefile = process_savefile(&tracker_info,&piece_track);
+  savefile = process_savefile(&tracker_info,&piece_track);
   
   get_my_id();
   

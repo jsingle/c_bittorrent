@@ -163,6 +163,8 @@ FILE * process_savefile(
         }else{
           //printf("Piece %d not verified\n",i);
         }
+        free(piece);
+        free(shapiece);
       }
 
       //verify last piece
@@ -185,6 +187,8 @@ FILE * process_savefile(
         //printf("Piece %d not verified\n",i);
       }
       //setup bitfield
+      free(piece);
+      free(shapiece);
     }
   
     printf("Using existing file: \"%s\" of size %d \n",t_file_name,file_l);
@@ -554,13 +558,15 @@ int init_incoming_socket(int port){
 
   // TODO get right port here
   getaddrinfo(NULL,port_str, &hints, &res);
+  // getting a 140 byte mem loss from this call (alloc'd
+  // but not free'd)
 
   sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
   bind(sockfd, 
       res -> ai_addr, 
       res->ai_addrlen);
 
-
+  freeaddrinfo(res);
   //TODO: default port is not working somehow
   fprintf(stderr,"Server bound to socket on socket_fd %d, on port %s\n",
       sockfd,port_str);
@@ -578,7 +584,7 @@ void init_piece_tracker(piece_tracker * pt,bt_info_t * track_nfo){
   //setup bitfield, piece tracking
   pt->size = track_nfo->num_pieces/8 +1;
   pt->msg = (unsigned char *)malloc(pt->size + 
-      sizeof(int)+ 1 + sizeof(size_t) + 3);// FREE'D
+      sizeof(int)+ 1 + sizeof(size_t) + 3);
   pt->last_piece = track_nfo->num_pieces-1;
   
   // last piece is special...
@@ -586,7 +592,6 @@ void init_piece_tracker(piece_tracker * pt,bt_info_t * track_nfo){
     (track_nfo->num_pieces-1)*track_nfo->piece_length;
   pt->bitfield = pt->msg+sizeof(int)+1 +sizeof(size_t)+3;
   bzero(pt->msg,pt->size + sizeof(size_t) + 1 +3 +sizeof(int));
-  //free(pt->msg);
 
   log_record("Bitfield created with length: %d\n",(int)(pt->size));
 
