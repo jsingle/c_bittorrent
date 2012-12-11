@@ -149,8 +149,6 @@ int main (int argc, char * argv[]){
   
   savefile = process_savefile(&tracker_info,&piece_track);
   
-  get_my_id();
-  
   setup_peer_bitfields(name_sha1,&piece_track,h_message,rh_message);
   // add active peer fd to read list
   setup_fds_for_polling(&incoming_sockfd,&maxfd);

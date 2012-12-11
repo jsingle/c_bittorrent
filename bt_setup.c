@@ -16,7 +16,7 @@
 extern bt_args_t bt_args;
 extern log_info logger;
 
-void get_my_id(){
+void get_my_id(unsigned short port){
 
   struct ifaddrs * interfaces, *cur_ifa;
 
@@ -44,9 +44,8 @@ void get_my_id(){
 
     //retrieve sockaddr_in of interfaces    
     ifa_saddr  = (struct sockaddr_in *) cur_ifa->ifa_addr; 
-  calc_id(inet_ntoa(ifa_saddr->sin_addr),(unsigned short)bt_args.port,
+  calc_id(inet_ntoa(ifa_saddr->sin_addr),port,
       bt_args.myid);
-  printf("my ip: %s\nport: %d\n",inet_ntoa(ifa_saddr->sin_addr),bt_args.port);
   }
 
   freeifaddrs(interfaces);
@@ -518,6 +517,7 @@ int connect_to_peer(peer_t * peer, char * sha1, char * h_message,
     return 1;
   }
 
+  get_my_id(peer->port);
   memcpy(&(h_message[48]),&(bt_args.myid[0]),20);
 
   int sent = send(peer_sock_fd,h_message,68,0);
@@ -529,6 +529,8 @@ int connect_to_peer(peer_t * peer, char * sha1, char * h_message,
   //printf("Sent handshake\n");
   *sfd = peer_sock_fd;
   get_peer_handshake(peer,sha1,h_message);
+  
+  calc_id(inet_ntoa(peer->sockaddr.sin_addr),peer->port,&(h_message[48]));
   handshake_failed = read_handshake(peer_sock_fd,rh_message,h_message);
 
   if(handshake_failed == 0){
