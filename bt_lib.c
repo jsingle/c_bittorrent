@@ -354,11 +354,11 @@ int accept_new_peer(int incoming_sockfd, char * sha1, char * h_message, char * r
   char id[21];
   ip = inet_ntoa(client_addr.sin_addr);
   port = htons(client_addr.sin_port);
+  printf("client's port: %d\n",port);
   calc_id(ip,port,id);
   id[20] = '\0';
   memcpy(&(h_message[48]),id,20);
 
-  printf("incoming port: %d\n",port);
   int rh_ret = read_handshake(client_fd,rh_message,h_message);
 
   memcpy(&(h_message[48]),bt_args.myid,20);

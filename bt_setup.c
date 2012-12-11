@@ -135,9 +135,8 @@ FILE * process_savefile(
     }else{//only try to verify files that are long enough
       //TODO: deal with savefiles that are too long
       char * piece;
-      char * shapiece;
+      char shapiece[20];
       piece = (char *)malloc(tracker_info->piece_length);
-      shapiece = (char *)malloc(20);
       int sread;
       unsigned char bitand;
       fseek(savefile,0L,SEEK_SET);
@@ -163,8 +162,6 @@ FILE * process_savefile(
         }else{
           //printf("Piece %d not verified\n",i);
         }
-        free(piece);
-        free(shapiece);
       }
 
       //verify last piece
@@ -187,8 +184,9 @@ FILE * process_savefile(
         //printf("Piece %d not verified\n",i);
       }
       //setup bitfield
+      
+      
       free(piece);
-      free(shapiece);
     }
   
     printf("Using existing file: \"%s\" of size %d \n",t_file_name,file_l);
@@ -324,7 +322,7 @@ void parse_args(int argc,  char * argv[]){
     bt_args.peers[i] = NULL; //initially NULL
   }
 
-  bt_args.port = 0;
+  bt_args.port = INIT_PORT;
   bt_args.id = 0;
 
   while ((ch = getopt(argc, argv, "hp:s:l:vI:b:")) != -1) {
