@@ -69,12 +69,10 @@ void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info){
   int i;
   int havepieces=0;
   int contig=-1;
-  printf("File bitfield: ");
+  printf("File bitfield:\n");
   for(i=0;i<tracker_info->num_pieces;i++){
     unsigned char bitand = 0x80;
     if(piece_track->bitfield[i/8] & bitand>>(i%8)){
-      //if(!havepieces) printf("Have pieces: %d",i);
-      //else printf(", %d",i);
       printf("1");
       havepieces++;
     }
@@ -83,11 +81,17 @@ void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info){
       if (contig == -1) contig = i;
     }
   }
-  if(havepieces)printf("\n");
-  printf("Have %d of %d pieces, download %d%% completed, the %d first pieces are done\n",
-      havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces,contig);
+  printf("\n");
   if(havepieces == tracker_info->num_pieces)
     printf("Download Complete!\n");
+  else{
+    printf("Have %d of %d pieces, download %d%% complete",
+        havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces);
+    if(contig == -1)
+      printf("\n");
+    else
+      printf("the first %d pieces are ready to stream\n",contig)
+  }
 }
 
 // Sends a request for a piece of a file
