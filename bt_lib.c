@@ -87,7 +87,7 @@ void test_progress(piece_tracker * piece_track,bt_info_t * tracker_info){
   else{
     printf("Have %d of %d pieces, download %d%% complete",
         havepieces,tracker_info->num_pieces,(int)(100*havepieces)/tracker_info->num_pieces);
-    if(contig == -1)
+    if(contig < 1)
       printf("\n");
     else
       printf("the first %d pieces are ready to stream\n",contig);

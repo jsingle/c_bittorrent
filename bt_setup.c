@@ -553,14 +553,15 @@ int init_incoming_socket(int port){
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE; 
 
-  char port_str[5];
+  char port_str[5] = {0};
   sprintf(port_str, "%d", port);
+
+
 
   // TODO get right port here
   getaddrinfo(NULL,port_str, &hints, &res);
-  // getting a 140 byte mem loss from this call (alloc'd
-  // but not free'd)
 
+  printf("MY PORT : %s\n",port_str);
   sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
   bind(sockfd, 
       res -> ai_addr, 

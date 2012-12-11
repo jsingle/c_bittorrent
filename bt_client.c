@@ -30,7 +30,6 @@ log_info logger;
 
 //  TODO: port in bt_args isn't getting set correctly if no -b
 //  TODO: port received looks wrong too
-//  TODO: fix printing of bitfield, etc. near program start
 
 // OPTIONAL
   //TODO: (I'm looking at this -Greg) still getting connection 
@@ -119,6 +118,7 @@ int main (int argc, char * argv[]){
   char msginfo[50];
 
   fd_set tempset;
+
   gettimeofday(&(logger.start_tv),NULL);
 
   signal(SIGINT, sigint_handler);
@@ -157,10 +157,6 @@ int main (int argc, char * argv[]){
   int maxconnect=0;
 
   //main client loop
-  //printf("Starting Main Loop, maxfd:%d\n",maxfd);
-  // set alarm for handling aliveness
-
-
 
   while(1){
     // TODO: clients need to handle server closing connections
