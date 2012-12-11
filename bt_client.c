@@ -28,23 +28,8 @@ log_info logger;
   int incoming_sockfd;
   FILE * savefile;
 
-//  TODO: port in bt_args isn't getting set correctly if no -b
-//  TODO: port received looks wrong too
-
-// OPTIONAL
-  //TODO: (I'm looking at this -Greg) still getting connection 
-  //  refused on restart
-  //TODO: choking protocol? 
-  //TODO: connections should initially be choked and uninterested
-  // so we need code to initialize, then unchoke them, etc
-  //TODO: (I'll take this -Greg) check valgrind.  it
-  // 's giving some errors and memory leeks
-  // VALGRIND has the following remaining pieces reachable at
+ // VALGRIND has the following remaining pieces reachable at
   // the end nums given for mp3
-  //
-  // I'm assuming, since we use piece_tracker until the bitter
-  // end, we shouldn't free it. Perhaps we could free the pieces
-  // as relevant?
   //
   // 1140 - Sha1 of file pieces in piece_tracker
   // 456  - piece_tracker -> recvd_pos
@@ -72,7 +57,6 @@ void sigint_handler(int signum){
 
 void keepalive_handler(int signum){
   int i,alive=0;
-  //printf("INSIDE KEEPALIVE HANDLER\n");
   for(i=0;i<MAX_CONNECTIONS;i++){ 
     if ( (bt_args.peers[i] != NULL)){
 
@@ -159,14 +143,6 @@ int main (int argc, char * argv[]){
   //main client loop
 
   while(1){
-    // TODO: clients need to handle server closing connections
-    // 
-    // Greg - clients closing connections is handled by keepalive
-    // handler I think
-    //
-    // TODO: log clients closing connections, 
-    //
-    // Greg - I think we are logging connecting in bt_lib.c/accept_new_peer
     int peerpos=-1,j;
     memcpy(&tempset, &(bt_args.readset), sizeof(tempset));
     tv.tv_sec = 30;
